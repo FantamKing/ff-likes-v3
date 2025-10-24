@@ -75,7 +75,7 @@ app = Flask(__name__)
 
 # ==================== SIMPLE TOKEN TRACKING (No Database) ====================
 
-# In-memory storage (resets on server restart - good enough for demo)
+# In-memory storage (resets on server restart  yeah yeah itz fancy but stil...)
 used_tokens_today = {}
 
 def get_used_tokens_today(target_uid, server_name):
@@ -101,7 +101,7 @@ def get_remaining_tokens(available_tokens, used_tokens):
     """Get tokens that haven't been used today"""
     return [token for token in available_tokens if token not in used_tokens]
 
-# ==================== CORE FUNCTIONALITY ====================
+# ==================== CORE FUNCTIONALITY(Main Matter) V14 ====================
 
 def get_headers(token):
     return {
@@ -113,7 +113,7 @@ def get_headers(token):
         'Expect': "100-continue",
         'X-Unity-Version': "2018.4.11f1",
         'X-GA': "v1 1",
-        'ReleaseVersion': "OB50"
+        'ReleaseVersion': "OB50" #mit !!!!!!!!!!
     }
 
 def load_tokens(server_name):
@@ -200,8 +200,8 @@ async def send_multiple_requests(uid, server_name, like_count, available_tokens)
 def create_protobuf(uid):
     try:
         message = uid_generator_pb2.uid_generator()
-        message.krishna_ = int(uid)
-        message.teamXdarks = 1
+        message.god_is_cruel = int(uid)
+        message.god_sees_nothing = 1
         return message.SerializeToString()
     except Exception as e:
         print(f"UID protobuf error: {e}")
@@ -244,9 +244,12 @@ def decode_protobuf(binary):
 @app.route('/')
 def home():
     return jsonify({
-        "message": "Free Fire Likes API - FULLY WORKING!",
+        "message": "Free Fire Likes API - Activating....",
+        "message": "  "',
+        "message": "  "',
+        "message": "  "',
         "status": "active",
-        "usage": "/like?uid=USER_ID&server_name=SERVER&like_count=COUNT",
+        "usage": "just type and edit this    /like?uid=USER_ID&server_name=SERVER&like_count=COUNT",
         "credits": {
             "Developer": "God",
             "Instagram": "_echo.del.alma_"
@@ -289,7 +292,7 @@ def handle_requests():
         
         all_tokens = [token_data["token"] for token_data in all_tokens_data]
         
-        # Get tokens already used today (simplified)
+        # Get tokens already used today (fancy)
         used_tokens_today_list = get_used_tokens_today(uid, server_name)
         available_tokens = get_remaining_tokens(all_tokens, used_tokens_today_list)
         
@@ -321,7 +324,7 @@ def handle_requests():
         before_like = before_json.get('AccountInfo', {}).get('Likes', 0)
         before_like = int(before_like) if before_like else 0
         
-        # Get player info
+        # Get player info   another fancy   yoo   yoo!!
         player_name = before_json.get('AccountInfo', {}).get('PlayerNickname', 'Unknown Player')
         
         print(f"📊 Initial likes: {before_like}, Player: {player_name}")
