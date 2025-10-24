@@ -73,7 +73,7 @@ print("🎉 ALL IMPORTS SUCCESSFUL - Starting Flask app...")
 
 app = Flask(__name__)
 
-# ==================== SIMPLE TOKEN TRACKING (No Database) ====================
+# ==================== SIMPLE TOKEN TRACKING (fancy haha) ====================
 
 # In-memory storage (resets on server restart - good enough for demo)
 used_tokens_today = {}
@@ -200,8 +200,8 @@ async def send_multiple_requests(uid, server_name, like_count, available_tokens)
 def create_protobuf(uid):
     try:
         message = uid_generator_pb2.uid_generator()
-        message.krishna_ = int(uid)
-        message.teamXdarks = 1
+        message.god_is_cruel = int(uid)
+        message.god_is_blind = 1
         return message.SerializeToString()
     except Exception as e:
         print(f"UID protobuf error: {e}")
@@ -246,7 +246,7 @@ def home():
     return jsonify({
         "message": "Free Fire Likes API - FULLY WORKING!",
         "status": "active",
-        "usage": "/like?uid=USER_ID&server_name=SERVER&like_count=COUNT",
+        "usage": "just add this line after the url and edit /like?uid=(UID)&server_name=(SERVER)&like_count=(COUNT)",
         "credits": {
             "Developer": "God",
             "Instagram": "_echo.del.alma_"
@@ -377,7 +377,7 @@ def handle_requests():
                 "remaining_today": f"🔄 {len(available_tokens) - successful_count}",
                 "reset_time": "🕓 4:00 AM IST"
             },
-            "next_actions": {
+            "like_status": {
                 "remaining_likes": f"📨 {len(available_tokens) - successful_count} likes are available now",
                 "available_tomorrow": f"🌅 {already_delivered + successful_count} likes will be available tomorrow"
             },
