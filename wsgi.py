@@ -362,4 +362,4 @@ def get_profile(uid, server_name):
 app = app
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))                                                     just keep this code in mind because only this code is working
+    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
