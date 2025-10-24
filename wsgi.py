@@ -68,6 +68,7 @@ except Exception as e:
 
 print("🎉 ALL IMPORTS SUCCESSFUL - Starting Flask app...")
 
+# Create Flask app
 app = Flask(__name__)
 
 @app.route('/')
@@ -110,10 +111,6 @@ def handle_requests():
             "message": str(e)
         }), 500
 
-# For Vercel - export the app directly
-app = appfrom app import app
-
+# Vercel needs this - SIMPLE AND CLEAN
 if __name__ == '__main__':
-    app.run(debug=True)
-#this code was made by cutehack
-#this code was made by cutehack
+    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
