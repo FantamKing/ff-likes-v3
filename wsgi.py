@@ -4,9 +4,7 @@ import sys
 import traceback
 import json
 import os
-from datetime import datetime, timedelta
-import sqlite3
-from contextlib import contextmanager
+from datetime import datetime
 
 print("🚀 STARTING IMPORTS - PHASE 1")
 
@@ -75,53 +73,29 @@ print("🎉 ALL IMPORTS SUCCESSFUL - Starting Flask app...")
 
 app = Flask(__name__)
 
-# ==================== DATABASE SETUP ====================
+# ==================== SIMPLE TOKEN TRACKING (No Database) ====================
 
-def init_db():
-    """Initialize SQLite database for tracking likes"""
-    with sqlite3.connect('likes.db') as conn:
-        conn.execute('''
-            CREATE TABLE IF NOT EXISTS like_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                target_uid INTEGER NOT NULL,
-                token_used TEXT NOT NULL,
-                used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                server_name TEXT NOT NULL
-            )
-        ''')
-        conn.commit()
-
-init_db()
-
-@contextmanager
-def get_db():
-    """Database connection context manager"""
-    conn = sqlite3.connect('likes.db')
-    conn.row_factory = sqlite3.Row
-    try:
-        yield conn
-    finally:
-        conn.close()
+# In-memory storage (resets on server restart - good enough for demo)
+used_tokens_today = {}
 
 def get_used_tokens_today(target_uid, server_name):
-    """Get tokens already used for this UID today"""
-    with get_db() as conn:
-        result = conn.execute('''
-            SELECT token_used FROM like_history 
-            WHERE target_uid = ? AND server_name = ? 
-            AND date(used_at) = date('now')
-        ''', (target_uid, server_name))
-        return [row['token_used'] for row in result.fetchall()]
+    """Get tokens already used for this UID today (simplified)"""
+    key = f"{target_uid}_{server_name}"
+    today = datetime.now().strftime("%Y-%m-%d")
+    
+    if key in used_tokens_today and used_tokens_today[key]["date"] == today:
+        return used_tokens_today[key]["tokens"]
+    return []
 
 def record_like_usage(target_uid, tokens_used, server_name):
-    """Record which tokens were used for this UID"""
-    with get_db() as conn:
-        for token in tokens_used:
-            conn.execute('''
-                INSERT INTO like_history (target_uid, token_used, server_name)
-                VALUES (?, ?, ?)
-            ''', (target_uid, token, server_name))
-        conn.commit()
+    """Record which tokens were used for this UID (simplified)"""
+    key = f"{target_uid}_{server_name}"
+    today = datetime.now().strftime("%Y-%m-%d")
+    
+    if key not in used_tokens_today or used_tokens_today[key]["date"] != today:
+        used_tokens_today[key] = {"date": today, "tokens": []}
+    
+    used_tokens_today[key]["tokens"].extend(tokens_used)
 
 def get_remaining_tokens(available_tokens, used_tokens):
     """Get tokens that haven't been used today"""
@@ -315,11 +289,11 @@ def handle_requests():
         
         all_tokens = [token_data["token"] for token_data in all_tokens_data]
         
-        # Get tokens already used today
-        used_tokens_today = get_used_tokens_today(uid, server_name)
-        available_tokens = get_remaining_tokens(all_tokens, used_tokens_today)
+        # Get tokens already used today (simplified)
+        used_tokens_today_list = get_used_tokens_today(uid, server_name)
+        available_tokens = get_remaining_tokens(all_tokens, used_tokens_today_list)
         
-        print(f"🔑 Token Status - Total: {len(all_tokens)}, Used Today: {len(used_tokens_today)}, Available: {len(available_tokens)}")
+        print(f"🔑 Token Status - Total: {len(all_tokens)}, Used Today: {len(used_tokens_today_list)}, Available: {len(available_tokens)}")
         
         if not available_tokens:
             return jsonify({
@@ -363,7 +337,7 @@ def handle_requests():
         successful_tokens = [token for status, token in results if status == 200]
         successful_count = len(successful_tokens)
         
-        # Record usage
+        # Record usage (simplified)
         record_like_usage(uid, successful_tokens, server_name)
         
         print(f"✅ Likes sent - Successful: {successful_count}/{actual_likes_to_send}")
@@ -380,7 +354,7 @@ def handle_requests():
         like_given = after_like - before_like
         
         # Calculate already delivered (from previous requests today)
-        already_delivered = len(used_tokens_today)
+        already_delivered = len(used_tokens_today_list)
         
         # Build response in your exact format
         result = {
@@ -390,7 +364,7 @@ def handle_requests():
                 "uid": f"🆔 {uid}",
                 "server": f"🌍 {server_name}"
             },
-            "Like_analytics": {
+            "like_status": {
                 "before": f"📊 {before_like}",
                 "after": f"📈 {after_like}",
                 "added": f"✅ +{like_given}",
@@ -403,7 +377,7 @@ def handle_requests():
                 "remaining_today": f"🔄 {len(available_tokens) - successful_count}",
                 "reset_time": "🕓 4:00 AM IST"
             },
-            "next_actions": {
+            "final_like_status": {
                 "remaining_likes": f"📨 {len(available_tokens) - successful_count} likes are available now",
                 "available_tomorrow": f"🌅 {already_delivered + successful_count} likes will be available tomorrow"
             },
