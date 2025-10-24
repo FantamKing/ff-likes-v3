@@ -43,8 +43,8 @@ def get_headers(token):
         'Authorization': f"Bearer {token}",
         'Content-Type': "application/x-www-form-urlencoded",
         'Expect': "100-continue",
-        'X-Unity-Version': "2022.3.21f1",
-        'X-GA': "v2 1",
+        'X-Unity-Version': "2018.4.11f1",
+        'X-GA': "v1 1",
         'ReleaseVersion': "OB50"
     }
 
