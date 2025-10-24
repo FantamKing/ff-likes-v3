@@ -2,6 +2,11 @@
 
 import sys
 import traceback
+import json
+import os
+from datetime import datetime, timedelta
+import sqlite3
+from contextlib import contextmanager
 
 print("🚀 STARTING IMPORTS - PHASE 1")
 
@@ -70,7 +75,59 @@ print("🎉 ALL IMPORTS SUCCESSFUL - Starting Flask app...")
 
 app = Flask(__name__)
 
-# ==================== YOUR LIKE FUNCTIONALITY ====================
+# ==================== DATABASE SETUP ====================
+
+def init_db():
+    """Initialize SQLite database for tracking likes"""
+    with sqlite3.connect('likes.db') as conn:
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS like_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                target_uid INTEGER NOT NULL,
+                token_used TEXT NOT NULL,
+                used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                server_name TEXT NOT NULL
+            )
+        ''')
+        conn.commit()
+
+init_db()
+
+@contextmanager
+def get_db():
+    """Database connection context manager"""
+    conn = sqlite3.connect('likes.db')
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+def get_used_tokens_today(target_uid, server_name):
+    """Get tokens already used for this UID today"""
+    with get_db() as conn:
+        result = conn.execute('''
+            SELECT token_used FROM like_history 
+            WHERE target_uid = ? AND server_name = ? 
+            AND date(used_at) = date('now')
+        ''', (target_uid, server_name))
+        return [row['token_used'] for row in result.fetchall()]
+
+def record_like_usage(target_uid, tokens_used, server_name):
+    """Record which tokens were used for this UID"""
+    with get_db() as conn:
+        for token in tokens_used:
+            conn.execute('''
+                INSERT INTO like_history (target_uid, token_used, server_name)
+                VALUES (?, ?, ?)
+            ''', (target_uid, token, server_name))
+        conn.commit()
+
+def get_remaining_tokens(available_tokens, used_tokens):
+    """Get tokens that haven't been used today"""
+    return [token for token in available_tokens if token not in used_tokens]
+
+# ==================== CORE FUNCTIONALITY ====================
 
 def get_headers(token):
     return {
@@ -82,7 +139,7 @@ def get_headers(token):
         'Expect': "100-continue",
         'X-Unity-Version': "2018.4.11f1",
         'X-GA': "v1 1",
-        'ReleaseVersion': "OB50"  # UPDATED TO OB50
+        'ReleaseVersion': "OB50"
     }
 
 def load_tokens(server_name):
@@ -139,25 +196,25 @@ async def send_request(encrypted_uid, token, url):
         headers = get_headers(token)
         async with aiohttp.ClientSession() as session:
             async with session.post(url, data=edata, headers=headers, timeout=30) as response:
-                return response.status
+                return response.status, token
     except Exception as e:
         print(f"Request error: {e}")
-        return 500
+        return 500, token
 
-async def send_multiple_requests(uid, server_name, like_count):
+async def send_multiple_requests(uid, server_name, like_count, available_tokens):
     try:
         region = server_name
         protobuf_message = create_protobuf_message(uid, region)
         encrypted_uid = encrypt_message(protobuf_message)
         
         url = get_server_url(server_name, "like")
-        tokens = load_tokens(server_name)
         
-        like_count = max(1, min(100, like_count))
+        like_count = max(1, min(len(available_tokens), like_count))
         
         tasks = []
         for i in range(like_count):
-            token = tokens[i % len(tokens)]["token"]
+            token_data = available_tokens[i]
+            token = token_data["token"]
             tasks.append(send_request(encrypted_uid, token, url))
         
         results = await asyncio.gather(*tasks)
@@ -252,11 +309,29 @@ def handle_requests():
             return jsonify({"error": "like_count must be a valid number"}), 400
 
         # Process the request
-        data = load_tokens(server_name)
-        if not data:
+        all_tokens_data = load_tokens(server_name)
+        if not all_tokens_data:
             return jsonify({"error": "No tokens available for this server"}), 500
+        
+        all_tokens = [token_data["token"] for token_data in all_tokens_data]
+        
+        # Get tokens already used today
+        used_tokens_today = get_used_tokens_today(uid, server_name)
+        available_tokens = get_remaining_tokens(all_tokens, used_tokens_today)
+        
+        print(f"🔑 Token Status - Total: {len(all_tokens)}, Used Today: {len(used_tokens_today)}, Available: {len(available_tokens)}")
+        
+        if not available_tokens:
+            return jsonify({
+                "status": "⏰ Daily Limit Reached",
+                "message": "All available IDs have liked this profile today",
+                "reset_time": "🕓 Resets at 4:00 AM IST"
+            }), 400
+        
+        # Filter available tokens data
+        available_tokens_data = [token_data for token_data in all_tokens_data if token_data["token"] in available_tokens]
             
-        token = data[0]['token']
+        token = available_tokens_data[0]['token']
         encrypted_uid = enc(uid)
         
         if not encrypted_uid:
@@ -272,16 +347,26 @@ def handle_requests():
         before_like = before_json.get('AccountInfo', {}).get('Likes', 0)
         before_like = int(before_like) if before_like else 0
         
-        # Get initial profile info
-        initial_name = before_json.get('AccountInfo', {}).get('PlayerNickname', 'Unknown')
-        initial_level = before_json.get('AccountInfo', {}).get('Level', 'N/A')
+        # Get player info
+        player_name = before_json.get('AccountInfo', {}).get('PlayerNickname', 'Unknown Player')
         
-        print(f"📊 Initial likes: {before_like}, Player: {initial_name}, Level: {initial_level}")
+        print(f"📊 Initial likes: {before_like}, Player: {player_name}")
+        
+        # Calculate actual likes to send (limited by available tokens)
+        actual_likes_to_send = min(like_count, len(available_tokens))
         
         # Send likes
-        print(f"🚀 Sending {like_count} likes...")
-        results = asyncio.run(send_multiple_requests(uid, server_name, like_count))
-        print(f"✅ Likes sent - Results: {results}")
+        print(f"🚀 Sending {actual_likes_to_send} likes...")
+        results = asyncio.run(send_multiple_requests(uid, server_name, actual_likes_to_send, available_tokens_data))
+        
+        # Extract successful tokens
+        successful_tokens = [token for status, token in results if status == 200]
+        successful_count = len(successful_tokens)
+        
+        # Record usage
+        record_like_usage(uid, successful_tokens, server_name)
+        
+        print(f"✅ Likes sent - Successful: {successful_count}/{actual_likes_to_send}")
         
         # Get updated like count
         print("📊 Getting updated like count...")
@@ -291,31 +376,40 @@ def handle_requests():
             
         after_json = json.loads(MessageToJson(after))
         after_like = int(after_json['AccountInfo']['Likes'])
-        player_id = int(after_json['AccountInfo']['UID'])
-        name = str(after_json['AccountInfo']['PlayerNickname'])
-        
-        # Get additional profile info
-        level = after_json['AccountInfo'].get('Level', 'N/A')
-        exp = after_json['AccountInfo'].get('Exp', 'N/A')
-        avatar = after_json['AccountInfo'].get('Avatar', 'N/A')
         
         like_given = after_like - before_like
-        status = 1 if like_given > 0 else 2
         
+        # Calculate already delivered (from previous requests today)
+        already_delivered = len(used_tokens_today)
+        
+        # Build response in your exact format
         result = {
-            "LikesGivenByAPI": like_given,
-            "LikesafterCommand": after_like,
-            "LikesbeforeCommand": before_like,
-            "PlayerNickname": name,
-            "UID": player_id,
-            "Level": level,
-            "Experience": exp,
-            "Avatar": avatar,
-            "RequestedLikes": like_count,
-            "status": status,
+            "status": "✅ Success" if like_given > 0 else "⚠️ No Change",
+            "player_info": {
+                "name": player_name,
+                "uid": f"🆔 {uid}",
+                "server": f"🌍 {server_name}"
+            },
+            "Like_analytics": {
+                "before": f"📊 {before_like}",
+                "after": f"📈 {after_like}",
+                "added": f"✅ +{like_given}",
+                "requested": f"🎯 {like_count}",
+                "already delivered": f"🚀 {already_delivered + successful_count}"
+            },
+            "Management": {
+                "total likes request per day": f"🔑 {len(all_tokens)}",
+                "used_today": f"⏰ {already_delivered + successful_count}",
+                "remaining_today": f"🔄 {len(available_tokens) - successful_count}",
+                "reset_time": "🕓 4:00 AM IST"
+            },
+            "next_actions": {
+                "remaining_likes": f"📨 {len(available_tokens) - successful_count} likes are available now",
+                "available_tomorrow": f"🌅 {already_delivered + successful_count} likes will be available tomorrow"
+            },
             "credits": {
-                "Developer": "God",
-                "Instagram": "_echo.del.alma_"
+                "Developer": "👑 God",
+                "Instagram": "📱 _echo.del.alma_"
             }
         }
         
@@ -329,34 +423,10 @@ def handle_requests():
             "error": "Internal server error",
             "message": str(e),
             "credits": {
-                "Developer": "God",
-                "Instagram": "_echo.del.alma_"
+                "Developer": "👑 God",
+                "Instagram": "📱 _echo.del.alma_"
             }
         }), 500
-
-# Debug route to see full profile data
-@app.route('/profile/<uid>/<server_name>')
-def get_profile(uid, server_name):
-    """Debug route to see ALL profile data"""
-    try:
-        data = load_tokens(server_name.upper())
-        token = data[0]['token']
-        encrypted_uid = enc(uid)
-        
-        profile = make_request(encrypted_uid, server_name.upper(), token)
-        if profile:
-            profile_json = json.loads(MessageToJson(profile))
-            return jsonify({
-                "profile_data": profile_json,
-                "credits": {
-                    "Developer": "God",
-                    "Instagram": "_echo.del.alma_"
-                }
-            })
-        else:
-            return jsonify({"error": "Failed to get profile"}), 500
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 # For Vercel
 app = app
