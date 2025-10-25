@@ -9,7 +9,7 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/god's_plan.py"
+      "dest": "/god%27s_plan.py"
     }
   ]
 }
