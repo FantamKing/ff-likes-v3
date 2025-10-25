@@ -408,44 +408,50 @@ def handle_requests():
             }
         }), 500
 
-@app.route('/profile/<uid>/<server_name>')
-def get_profile(uid, server_name):
-    """God's Plan - Profile Debug Route 🙏"""
+# ==================== GOD'S PLAN - DEBUG ROUTES ====================
+
+@app.route('/debug-tokens/<server_name>')
+def debug_tokens(server_name):
+    """God's Plan - Token Debug Route 🙏"""
     try:
-        data = load_tokens(server_name.upper())
-        token = data[0]['token']
-        encrypted_uid = enc(uid)
+        print(f"🔍 God's Plan - Debug tokens for server: {server_name}")
         
-        profile = make_request(encrypted_uid, server_name.upper(), token)
-        if profile:
-            profile_json = json.loads(MessageToJson(profile))
+        data = load_tokens(server_name.upper())
+        if not data:
             return jsonify({
-                "profile_data": profile_json,
-                "message": "God's Plan Profile Debug",
+                "error": "No tokens found in God's Plan",
                 "credits": {
-                    "Developer": "👑 God",
-                    "Instagram": "📱 _echo.del.alma_",
-                    "project": "God's Plan - Free Fire API"
-                }
-            })
-        else:
-            return jsonify({
-                "error": "Failed to get profile in God's Plan",
-                "credits": {
-                    "Developer": "👑 God",
+                    "Developer": "👑 God", 
                     "Instagram": "📱 _echo.del.alma_"
                 }
             }), 500
+            
+        token_info = {
+            "total_tokens": len(data),
+            "server": server_name,
+            "tokens_preview": [{"token": token_data["token"][:20] + "..."} for token_data in data],
+            "message": "God's Plan Token Debug"
+        }
+        
+        return jsonify({
+            "debug_info": token_info,
+            "credits": {
+                "Developer": "👑 God",
+                "Instagram": "📱 _echo.del.alma_",
+                "project": "God's Plan - Token Debug"
+            }
+        })
+        
     except Exception as e:
         return jsonify({
-            "error": str(e),
+            "error": f"Token debug failed: {str(e)}",
             "credits": {
                 "Developer": "👑 God",
                 "Instagram": "📱 _echo.del.alma_"
             }
         }), 500
 
-# God's Plan - Vercel Handler
+# ==================== GOD'S PLAN - VERCEL HANDLER ====================
 app = app
 
 if __name__ == '__main__':
