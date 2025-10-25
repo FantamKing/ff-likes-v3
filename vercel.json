@@ -4,12 +4,28 @@
     {
       "src": "wsgi.py",
       "use": "@vercel/python"
+    },
+    {
+      "src": "token_generator.py",
+      "use": "@vercel/python"
     }
   ],
   "routes": [
     {
+      "src": "/like/(.*)",
+      "dest": "/wsgi.py"
+    },
+    {
+      "src": "/profile/(.*)",
+      "dest": "/wsgi.py"
+    },
+    {
+      "src": "/tokens/(.*)",
+      "dest": "/token_generator.py"
+    },
+    {
       "src": "/(.*)",
-      "dest": "wsgi.py"
+      "dest": "/wsgi.py"
     }
   ]
 }
