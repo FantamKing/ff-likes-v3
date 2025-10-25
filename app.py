@@ -81,9 +81,9 @@ def get_headers(token):
         'Accept-Encoding': "gzip",
         'Authorization': f"Bearer {token}",
         'Content-Type': "application/x-www-form-urlencoded",
-        'X-Unity-Version': "2022.3.21f1",
+        'X-Unity-Version': "2018.4.11f1",
         'X-GA': "v1 1",
-        'ReleaseVersion': "OB56"
+        'ReleaseVersion': "OB50"
     }
 
 def load_tokens(server_name):
