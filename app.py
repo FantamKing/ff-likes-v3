@@ -2,18 +2,6 @@
 # Credit:- "insta :-_echo.del.alma_"
 # Developed by God
 
-import os
-
-def get_daily_limit(uid):
-    # Use Vercel env vars or in-memory cache
-    limits = json.loads(os.environ.get('DAILY_LIMITS', '{}'))
-    return limits.get(str(uid), 0)
-
-def update_daily_limit(uid, likes_sent):
-    # This won't persist between deployments but works for short-term
-    pass
-    
-
 import sys
 import traceback
 
@@ -63,8 +51,6 @@ try:
     import requests
     import json
     import os
-    import time
-    from datetime import datetime, timedelta
     print("✅ Utilities imported successfully")
 except Exception as e:
     print(f"💥 UTILITIES IMPORT FAILED: {e}")
@@ -86,64 +72,6 @@ print("🎉 ALL IMPORTS SUCCESSFUL - Starting God's Plan...")
 
 app = Flask(__name__)
 
-# ==================== IN-MEMORY DAILY TRACKER (FIXED FOR VERCEL) ====================
-
-class DailyLikeTracker:
-    def __init__(self):
-        self.data = {}
-    
-    def get_reset_time(self):
-        """Get next reset time (4:00 AM IST)"""
-        now = datetime.utcnow() + timedelta(hours=5, minutes=30)  # UTC to IST
-        today_4am = now.replace(hour=4, minute=0, second=0, microsecond=0)
-        
-        if now >= today_4am:
-            next_reset = today_4am + timedelta(days=1)
-        else:
-            next_reset = today_4am
-        
-        return next_reset.strftime("%H:%M %p IST"), next_reset
-    
-    def can_send_likes(self, uid, requested_likes):
-        """Check if we can send requested likes to this UID today"""
-        uid = str(uid)
-        current_time = time.time()
-        reset_time_str, next_reset = self.get_reset_time()
-        
-        # Clean old data (older than 24 hours)
-        self.clean_old_data()
-        
-        if uid not in self.data:
-            self.data[uid] = {"likes_sent": 0, "last_updated": current_time}
-        
-        used_today = self.data[uid]["likes_sent"]
-        remaining = max(0, 100 - used_today)
-        
-        can_send = min(requested_likes, remaining)
-        return can_send, used_today, remaining, reset_time_str
-    
-    def update_likes_sent(self, uid, likes_sent):
-        """Update the like count for a UID"""
-        uid = str(uid)
-        if uid in self.data:
-            self.data[uid]["likes_sent"] += likes_sent
-            self.data[uid]["last_updated"] = time.time()
-    
-    def clean_old_data(self):
-        """Remove data older than 24 hours"""
-        current_time = time.time()
-        uids_to_remove = []
-        
-        for uid, info in self.data.items():
-            if current_time - info["last_updated"] > 24 * 3600:  # 24 hours
-                uids_to_remove.append(uid)
-        
-        for uid in uids_to_remove:
-            del self.data[uid]
-
-# Initialize tracker
-tracker = DailyLikeTracker()
-
 # ==================== MAIN FUNCTIONALITY ====================
 
 def get_headers(token):
@@ -153,9 +81,9 @@ def get_headers(token):
         'Accept-Encoding': "gzip",
         'Authorization': f"Bearer {token}",
         'Content-Type': "application/x-www-form-urlencoded",
-        'X-Unity-Version': "2018.4.11f1",
+        'X-Unity-Version': "2022.3.21f1",
         'X-GA': "v1 1",
-        'ReleaseVersion': "OB50"
+        'ReleaseVersion': "OB56"
     }
 
 def load_tokens(server_name):
@@ -306,26 +234,12 @@ def home():
         "message": "God's Plan is Active! 🙏",
         "status": "Divine Intervention Ready",
         "usage": "/like?uid=USER_ID&server_name=SERVER&like_count=COUNT",
+        "note": "Daily tracking disabled - MongoDB integration coming soon",
         "credits": {
             "Developer": "👑 God",
             "Instagram": "📱 _echo.del.alma_"
         }
     })
-
-
-@app.route('/debug-tokens')      #for debuging the route
-def debug_tokens():
-    """Check if tokens are loading correctly"""
-    try:
-        tokens = load_tokens("IND")
-        return jsonify({
-            "tokens_found": len(tokens),
-            "first_token_preview": tokens[0]['token'][:50] + "..." if tokens else "No tokens",
-            "token_format": "correct" if isinstance(tokens, list) else "wrong"
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)})
-        
 
 @app.route('/like', methods=['GET'])
 def handle_requests():
@@ -351,27 +265,7 @@ def handle_requests():
         except ValueError:
             return jsonify({"error": "UID and like_count must be valid numbers"}), 400
 
-        # Check daily limits
-        can_send, used_today, remaining, reset_time = tracker.can_send_likes(uid, like_count)
-        
-        if can_send == 0:
-            return jsonify({
-                "status": 0,
-                "error": "Daily limit reached for this UID",
-                "Management": {
-                    "used_today": f"⏰ {used_today}",
-                    "remaining_today": f"🔄 {remaining}",
-                    "reset_time": f"🕓 {reset_time}"
-                }
-            }), 400
-
-        # Adjust like count to available limit
-        actual_likes_to_send = min(like_count, can_send)
-        
-        if actual_likes_to_send < like_count:
-            print(f"⚠️ Adjusting likes from {like_count} to {actual_likes_to_send} due to daily limit")
-
-        # Process the request
+        # Process the request (NO DAILY TRACKING)
         data = load_tokens(server_name)
         if not data:
             return jsonify({"error": "No tokens available for this server"}), 500
@@ -398,13 +292,10 @@ def handle_requests():
         
         print(f"📊 Initial likes: {before_like}, Player: {initial_name}, Level: {initial_level}")
         
-        # Send likes (only the allowed amount)
-        print(f"🚀 Sending {actual_likes_to_send} likes...")
-        results = asyncio.run(send_multiple_requests(uid, server_name, actual_likes_to_send))
+        # Send likes
+        print(f"🚀 Sending {like_count} likes...")
+        results = asyncio.run(send_multiple_requests(uid, server_name, like_count))
         print(f"✅ Likes sent - Results: {results}")
-        
-        # Update tracker
-        tracker.update_likes_sent(uid, actual_likes_to_send)
         
         # Get updated like count
         print("📊 Getting updated like count...")
@@ -425,10 +316,6 @@ def handle_requests():
         like_given = after_like - before_like
         status = 1 if like_given > 0 else 2
         
-        # Calculate already delivered today (including this request)
-        new_used_today = used_today + actual_likes_to_send
-        new_remaining = 100 - new_used_today
-        
         result = {
             "status": status,
             "player_info": {
@@ -443,19 +330,9 @@ def handle_requests():
                 "before": f"📊 {before_like}",
                 "after": f"📈 {after_like}",
                 "added": f"✅ +{like_given}",
-                "requested": f"🎯 {like_count}",
-                "already_delivered": f"🚀 {actual_likes_to_send}"
+                "requested": f"🎯 {like_count}"
             },
-            "Management": {
-                "total_likes_request_per_day": "🔑 100",
-                "used_today": f"⏰ {new_used_today}",
-                "remaining_today": f"🔄 {new_remaining}",
-                "reset_time": f"🕓 {reset_time}"
-            },
-            "next_actions": {
-                "remaining_likes": f"📨 {new_remaining} likes are available now",
-                "available_tomorrow": f"🌅 {new_used_today} likes will be available tomorrow"
-            },
+            "note": "Daily tracking disabled - MongoDB integration coming soon",
             "credits": {
                 "Developer": "👑 God",
                 "Instagram": "📱 _echo.del.alma_"
@@ -476,6 +353,43 @@ def handle_requests():
                 "Instagram": "📱 _echo.del.alma_"
             }
         }), 500
+
+# Debug route
+@app.route('/debug-request/<uid>/<server_name>')
+def debug_request(uid, server_name):
+    """Debug route to see what's happening with the request"""
+    try:
+        data = load_tokens(server_name.upper())
+        if not data:
+            return jsonify({"error": "No tokens available"})
+            
+        token = data[0]['token']
+        encrypted_uid = enc(uid)
+        
+        if not encrypted_uid:
+            return jsonify({"error": "Encryption failed"})
+        
+        url = get_server_url(server_name.upper(), "info")
+        edata = bytes.fromhex(encrypted_uid)
+        headers = get_headers(token)
+        
+        response = requests.post(url, data=edata, headers=headers, verify=True, timeout=30)
+        
+        debug_info = {
+            "url": url,
+            "status_code": response.status_code,
+            "response_headers": dict(response.headers),
+            "response_body_preview": response.text[:500] if response.text else "Empty response",
+            "response_hex": response.content.hex()[:100] + "..." if response.content else "No content"
+        }
+        
+        return jsonify(debug_info)
+        
+    except Exception as e:
+        return jsonify({
+            "error": f"Debug request failed: {str(e)}",
+            "traceback": traceback.format_exc()
+        })
 
 # For Vercel
 app = app
