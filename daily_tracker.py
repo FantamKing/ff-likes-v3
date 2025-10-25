@@ -4,23 +4,8 @@ from datetime import datetime, timedelta
 import os
 
 class DailyLikeTracker:
-    def __init__(self, filename="daily_likes.json"):
-        self.filename = filename
-        self.data = self.load_data()
-    
-    def load_data(self):
-        try:
-            with open(self.filename, "r") as f:
-                return json.load(f)
-        except FileNotFoundError:
-            return {}
-    
-    def save_data(self):
-        try:
-            with open(self.filename, "w") as f:
-                json.dump(self.data, f, indent=2)
-        except Exception as e:
-            print(f"Save error: {e}")
+    def __init__(self):
+        self.data = {}
     
     def get_reset_time(self):
         """Get next reset time (4:00 AM IST)"""
@@ -45,7 +30,6 @@ class DailyLikeTracker:
         
         if uid not in self.data:
             self.data[uid] = {"likes_sent": 0, "last_updated": current_time}
-            self.save_data()
         
         used_today = self.data[uid]["likes_sent"]
         remaining = max(0, 100 - used_today)
@@ -59,7 +43,6 @@ class DailyLikeTracker:
         if uid in self.data:
             self.data[uid]["likes_sent"] += likes_sent
             self.data[uid]["last_updated"] = time.time()
-            self.save_data()
     
     def clean_old_data(self):
         """Remove data older than 24 hours"""
@@ -72,9 +55,6 @@ class DailyLikeTracker:
         
         for uid in uids_to_remove:
             del self.data[uid]
-        
-        if uids_to_remove:
-            self.save_data()
 
 # Global tracker instance
 tracker = DailyLikeTracker()
