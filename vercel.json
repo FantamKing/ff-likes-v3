@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "wsgi.py",
+      "src": "Gods_Plan.py",
       "use": "@vercel/python"
     },
     {
@@ -13,11 +13,11 @@
   "routes": [
     {
       "src": "/like/(.*)",
-      "dest": "/wsgi.py"
+      "dest": "/Gods_Plan.py"
     },
     {
-      "src": "/profile/(.*)",
-      "dest": "/wsgi.py"
+      "src": "/profile/(.*)", 
+      "dest": "/Gods_Plan.py"
     },
     {
       "src": "/tokens/(.*)",
@@ -25,7 +25,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "/wsgi.py"
+      "dest": "/Gods_Plan.py"
     }
   ]
 }
