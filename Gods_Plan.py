@@ -452,10 +452,16 @@ def debug_tokens(server_name):
         }), 500
 
 # ==================== GOD'S PLAN - VERCEL HANDLER ====================
-app = app
+def handler(request, context):
+    """God's Plan - Simple Vercel Handler 🙏"""
+    return app
+
+print("🌟 God's Plan - Vercel Handler Activated!")
+print("🙏 Developed by God | Instagram: _echo.del.alma_")
+print("🚀 God's Plan is ready for deployment!")
 
 if __name__ == '__main__':
     print("🌟 Starting God's Plan API Server...")
-    print("🙏 Developed by  God | Instagram: _echo.del.alma_")
+    print("🙏 Developed by God | Instagram: _echo.del.alma_")
     print("🚀 God's Plan is now running!")
     app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
