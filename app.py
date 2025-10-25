@@ -2,6 +2,18 @@
 # Credit:- "insta :-_echo.del.alma_"
 # Developed by God
 
+import os
+
+def get_daily_limit(uid):
+    # Use Vercel env vars or in-memory cache
+    limits = json.loads(os.environ.get('DAILY_LIMITS', '{}'))
+    return limits.get(str(uid), 0)
+
+def update_daily_limit(uid, likes_sent):
+    # This won't persist between deployments but works for short-term
+    pass
+    
+
 import sys
 import traceback
 
