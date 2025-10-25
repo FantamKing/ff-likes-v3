@@ -51,6 +51,8 @@ try:
     import requests
     import json
     import os
+    import time
+    from datetime import datetime, timedelta
     print("✅ Utilities imported successfully")
 except Exception as e:
     print(f"💥 UTILITIES IMPORT FAILED: {e}")
@@ -72,6 +74,84 @@ print("🎉 ALL IMPORTS SUCCESSFUL - Starting God's Plan...")
 
 app = Flask(__name__)
 
+# ==================== DAILY TRACKER CLASS ====================
+
+class DailyLikeTracker:
+    def __init__(self, filename="daily_likes.json"):
+        self.filename = filename
+        self.data = self.load_data()
+    
+    def load_data(self):
+        try:
+            with open(self.filename, "r") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return {}
+    
+    def save_data(self):
+        try:
+            with open(self.filename, "w") as f:
+                json.dump(self.data, f, indent=2)
+        except Exception as e:
+            print(f"Save error: {e}")
+    
+    def get_reset_time(self):
+        """Get next reset time (4:00 AM IST)"""
+        now = datetime.utcnow() + timedelta(hours=5, minutes=30)  # UTC to IST
+        today_4am = now.replace(hour=4, minute=0, second=0, microsecond=0)
+        
+        if now >= today_4am:
+            next_reset = today_4am + timedelta(days=1)
+        else:
+            next_reset = today_4am
+        
+        return next_reset.strftime("%H:%M %p IST"), next_reset
+    
+    def can_send_likes(self, uid, requested_likes):
+        """Check if we can send requested likes to this UID today"""
+        uid = str(uid)
+        current_time = time.time()
+        reset_time_str, next_reset = self.get_reset_time()
+        
+        # Clean old data (older than 24 hours)
+        self.clean_old_data()
+        
+        if uid not in self.data:
+            self.data[uid] = {"likes_sent": 0, "last_updated": current_time}
+            self.save_data()
+        
+        used_today = self.data[uid]["likes_sent"]
+        remaining = max(0, 100 - used_today)
+        
+        can_send = min(requested_likes, remaining)
+        return can_send, used_today, remaining, reset_time_str
+    
+    def update_likes_sent(self, uid, likes_sent):
+        """Update the like count for a UID"""
+        uid = str(uid)
+        if uid in self.data:
+            self.data[uid]["likes_sent"] += likes_sent
+            self.data[uid]["last_updated"] = time.time()
+            self.save_data()
+    
+    def clean_old_data(self):
+        """Remove data older than 24 hours"""
+        current_time = time.time()
+        uids_to_remove = []
+        
+        for uid, info in self.data.items():
+            if current_time - info["last_updated"] > 24 * 3600:  # 24 hours
+                uids_to_remove.append(uid)
+        
+        for uid in uids_to_remove:
+            del self.data[uid]
+        
+        if uids_to_remove:
+            self.save_data()
+
+# Initialize tracker
+tracker = DailyLikeTracker()
+
 # ==================== MAIN FUNCTIONALITY ====================
 
 def get_headers(token):
@@ -81,6 +161,7 @@ def get_headers(token):
         'Accept-Encoding': "gzip",
         'Authorization': f"Bearer {token}",
         'Content-Type': "application/x-www-form-urlencoded",
+        'Expect': "100-continue",
         'X-Unity-Version': "2018.4.11f1",
         'X-GA': "v1 1",
         'ReleaseVersion': "OB50"
@@ -90,14 +171,7 @@ def load_tokens(server_name):
     try:
         if server_name == "IND":
             with open("token_ind.json", "r") as f:
-                data = json.load(f)
-                # Handle both array and object formats
-                if isinstance(data, list):
-                    return data
-                elif isinstance(data, dict) and "token" in data:
-                    return [data]  # Convert object to array
-                else:
-                    return [{"token": "default_token"}]
+                return json.load(f)
         elif server_name in {"BR", "US", "SAC", "NA"}:
             with open("token_br.json", "r") as f:
                 return json.load(f)
@@ -200,17 +274,7 @@ def make_request(encrypt, server_name, token):
         headers = get_headers(token)
 
         response = requests.post(url, data=edata, headers=headers, verify=True, timeout=30)
-        
-        # Check if response is successful
-        if response.status_code != 200:
-            print(f"API returned status: {response.status_code}")
-            return None
-            
         hex_data = response.content.hex()
-        if not hex_data:
-            print("Empty response from API")
-            return None
-            
         binary = bytes.fromhex(hex_data)
         return decode_protobuf(binary)
     except Exception as e:
@@ -234,7 +298,6 @@ def home():
         "message": "God's Plan is Active! 🙏",
         "status": "Divine Intervention Ready",
         "usage": "/like?uid=USER_ID&server_name=SERVER&like_count=COUNT",
-        "note": "Daily tracking disabled - MongoDB integration coming soon",
         "credits": {
             "Developer": "👑 God",
             "Instagram": "📱 _echo.del.alma_"
@@ -265,7 +328,27 @@ def handle_requests():
         except ValueError:
             return jsonify({"error": "UID and like_count must be valid numbers"}), 400
 
-        # Process the request (NO DAILY TRACKING)
+        # Check daily limits
+        can_send, used_today, remaining, reset_time = tracker.can_send_likes(uid, like_count)
+        
+        if can_send == 0:
+            return jsonify({
+                "status": 0,
+                "error": "Daily limit reached for this UID",
+                "Management": {
+                    "used_today": f"⏰ {used_today}",
+                    "remaining_today": f"🔄 {remaining}",
+                    "reset_time": f"🕓 {reset_time}"
+                }
+            }), 400
+
+        # Adjust like count to available limit
+        actual_likes_to_send = min(like_count, can_send)
+        
+        if actual_likes_to_send < like_count:
+            print(f"⚠️ Adjusting likes from {like_count} to {actual_likes_to_send} due to daily limit")
+
+        # Process the request
         data = load_tokens(server_name)
         if not data:
             return jsonify({"error": "No tokens available for this server"}), 500
@@ -292,10 +375,13 @@ def handle_requests():
         
         print(f"📊 Initial likes: {before_like}, Player: {initial_name}, Level: {initial_level}")
         
-        # Send likes
-        print(f"🚀 Sending {like_count} likes...")
-        results = asyncio.run(send_multiple_requests(uid, server_name, like_count))
+        # Send likes (only the allowed amount)
+        print(f"🚀 Sending {actual_likes_to_send} likes...")
+        results = asyncio.run(send_multiple_requests(uid, server_name, actual_likes_to_send))
         print(f"✅ Likes sent - Results: {results}")
+        
+        # Update tracker
+        tracker.update_likes_sent(uid, actual_likes_to_send)
         
         # Get updated like count
         print("📊 Getting updated like count...")
@@ -316,6 +402,10 @@ def handle_requests():
         like_given = after_like - before_like
         status = 1 if like_given > 0 else 2
         
+        # Calculate already delivered today (including this request)
+        new_used_today = used_today + actual_likes_to_send
+        new_remaining = 100 - new_used_today
+        
         result = {
             "status": status,
             "player_info": {
@@ -330,9 +420,19 @@ def handle_requests():
                 "before": f"📊 {before_like}",
                 "after": f"📈 {after_like}",
                 "added": f"✅ +{like_given}",
-                "requested": f"🎯 {like_count}"
+                "requested": f"🎯 {like_count}",
+                "already_delivered": f"🚀 {actual_likes_to_send}"
             },
-            "note": "Daily tracking disabled - MongoDB integration coming soon",
+            "Management": {
+                "total_likes_request_per_day": "🔑 100",
+                "used_today": f"⏰ {new_used_today}",
+                "remaining_today": f"🔄 {new_remaining}",
+                "reset_time": f"🕓 {reset_time}"
+            },
+            "next_actions": {
+                "remaining_likes": f"📨 {new_remaining} likes are available now",
+                "available_tomorrow": f"🌅 {new_used_today} likes will be available tomorrow"
+            },
             "credits": {
                 "Developer": "👑 God",
                 "Instagram": "📱 _echo.del.alma_"
@@ -354,7 +454,6 @@ def handle_requests():
             }
         }), 500
 
-# Debug route
 @app.route('/debug-request/<uid>/<server_name>')
 def debug_request(uid, server_name):
     """Debug route to see what's happening with the request"""
@@ -373,6 +472,10 @@ def debug_request(uid, server_name):
         edata = bytes.fromhex(encrypted_uid)
         headers = get_headers(token)
         
+        print(f"🔍 DEBUG: Sending request to {url}")
+        print(f"🔍 DEBUG: Headers: {headers}")
+        print(f"🔍 DEBUG: Encrypted UID length: {len(encrypted_uid)}")
+        
         response = requests.post(url, data=edata, headers=headers, verify=True, timeout=30)
         
         debug_info = {
@@ -383,6 +486,10 @@ def debug_request(uid, server_name):
             "response_hex": response.content.hex()[:100] + "..." if response.content else "No content"
         }
         
+        print(f"🔍 DEBUG: Response Status: {response.status_code}")
+        print(f"🔍 DEBUG: Response Headers: {dict(response.headers)}")
+        print(f"🔍 DEBUG: Response Body Preview: {response.text[:200]}")
+        
         return jsonify(debug_info)
         
     except Exception as e:
@@ -390,6 +497,24 @@ def debug_request(uid, server_name):
             "error": f"Debug request failed: {str(e)}",
             "traceback": traceback.format_exc()
         })
+
+@app.route('/daily-stats/<uid>')
+def daily_stats(uid):
+    """Check daily like statistics for a UID"""
+    try:
+        can_send, used_today, remaining, reset_time = tracker.can_send_likes(uid, 1)
+        
+        return jsonify({
+            "uid": uid,
+            "daily_stats": {
+                "used_today": used_today,
+                "remaining_today": remaining,
+                "reset_time": reset_time,
+                "can_send_more": can_send > 0
+            }
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 # For Vercel
 app = app
