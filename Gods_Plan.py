@@ -1,9 +1,13 @@
 # Credit:- "insta :-_echo.del.alma_"
+# Developer: God
+# This is the main Like API - God's Plan 🙏
+# Instagram: _echo.del.alma_
 
 import sys
 import traceback
 
-print("🚀 STARTING IMPORTS - PHASE 1")
+print("🚀 THINKING GOD'S PLAN -")
+print("🙏 Planned by God | Instagram: _echo.del.alma_")
 
 try:
     print("1. Importing Flask...")
@@ -66,13 +70,16 @@ except Exception as e:
     traceback.print_exc()
     sys.exit(1)
 
-print("🎉 ALL IMPORTS SUCCESSFUL - Starting Flask app...")
+print("🎉 ALL IMPORTS SUCCESSFUL - Starting God's Plan API...")
+print("🌟 God's Plan is activated - Free Fire Likes API Ready!")
+print("📱 Instagram: _echo.del.alma_")
 
 app = Flask(__name__)
 
-# ==================== YOUR LIKE FUNCTIONALITY ====================
+# ==================== GOD'S PLAN - LIKES FUNCTIONALITY ====================
 
 def get_headers(token):
+    """God's Plan - Header Configuration """
     return {
         'User-Agent': "Dalvik/2.1.0 (Linux; U; Android 9; ASUS_Z01QD Build/PI)",
         'Connection': "Keep-Alive",
@@ -82,10 +89,11 @@ def get_headers(token):
         'Expect': "100-continue",
         'X-Unity-Version': "2018.4.11f1",
         'X-GA': "v1 1",
-        'ReleaseVersion': "OB50"  # UPDATED TO OB50
+        'ReleaseVersion': "OB50"
     }
 
 def load_tokens(server_name):
+    """God's Plan - Token Loading System 🙏"""
     try:
         if server_name == "IND":
             with open("token_ind.json", "r") as f:
@@ -101,6 +109,7 @@ def load_tokens(server_name):
         return [{"token": "default_token"}]
 
 def encrypt_message(plaintext):
+    """God's Plan - Encryption System 🙏"""
     try:
         key = b'Yg&tc%DEuh6%Zc^8'
         iv = b'6oyZDr22E3ychjM%' 
@@ -113,6 +122,7 @@ def encrypt_message(plaintext):
         return ""
 
 def create_protobuf_message(user_id, region):
+    """God's Plan - Protobuf Message Creation 🙏"""
     try:
         message = like_pb2.like()
         message.uid = int(user_id)
@@ -123,6 +133,7 @@ def create_protobuf_message(user_id, region):
         return b""
 
 def get_server_url(server_name, endpoint_type="like"):
+    """God's Plan - Server URL Management 🙏"""
     base_urls = {
         "IND": "https://client.ind.freefiremobile.com/",
         "BR": "https://client.us.freefiremobile.com/",
@@ -134,6 +145,7 @@ def get_server_url(server_name, endpoint_type="like"):
     return base_url + ("LikeProfile" if endpoint_type == "like" else "GetPlayerPersonalShow")
 
 async def send_request(encrypted_uid, token, url):
+    """God's Plan - Single Request Handler 🙏"""
     try:
         edata = bytes.fromhex(encrypted_uid)
         headers = get_headers(token)
@@ -145,6 +157,7 @@ async def send_request(encrypted_uid, token, url):
         return 500
 
 async def send_multiple_requests(uid, server_name, like_count):
+    """God's Plan - Multiple Requests Handler 🙏"""
     try:
         region = server_name
         protobuf_message = create_protobuf_message(uid, region)
@@ -167,6 +180,7 @@ async def send_multiple_requests(uid, server_name, like_count):
         return []
 
 def create_protobuf(uid):
+    """God's Plan - UID Protobuf Creation 🙏"""
     try:
         message = uid_generator_pb2.uid_generator()
         message.krishna_ = int(uid)
@@ -177,6 +191,7 @@ def create_protobuf(uid):
         return b""
 
 def enc(uid):
+    """God's Plan - UID Encryption 🙏"""
     try:
         protobuf_data = create_protobuf(uid)
         encrypted_uid = encrypt_message(protobuf_data)
@@ -186,6 +201,7 @@ def enc(uid):
         return ""
 
 def make_request(encrypt, server_name, token):
+    """God's Plan - Profile Information Request 🙏"""
     try:
         url = get_server_url(server_name, "info")
         edata = bytes.fromhex(encrypt)
@@ -200,6 +216,7 @@ def make_request(encrypt, server_name, token):
         return None
 
 def decode_protobuf(binary):
+    """God's Plan - Protobuf Decoding 🙏"""
     try:
         items = like_count_pb2.Info()
         items.ParseFromString(binary)
@@ -208,65 +225,111 @@ def decode_protobuf(binary):
         print(f"Protobuf decode error: {e}")
         return None
 
-# ==================== FLASK ROUTES ====================
+# ==================== GOD'S PLAN - FLASK ROUTES ====================
 
 @app.route('/')
 def home():
+    """God's Plan - Main API Route 🙏"""
     return jsonify({
-        "message": "Free Fire Likes API - FULLY WORKING!",
+        "message": "Free Fire Likes API - GOD'S PLAN 🙏",
         "status": "active",
+        "version": "God's Plan v1.0",
         "usage": "/like?uid=USER_ID&server_name=SERVER&like_count=COUNT",
+        "developer_notes": "This is God's Plan - giving everyone likes!",
         "credits": {
-            "Developer": "God",
-            "Instagram": "_echo.del.alma_"
+            "Developer": "👑 God",
+            "Instagram": "📱 _echo.del.alma_",
+            "message": "Planned by God 🙏"
         }
     })
 
 @app.route('/like', methods=['GET'])
 def handle_requests():
+    """God's Plan - Like Request Handler 🙏"""
     try:
         # Support both 'uid' and 'user_id' parameters
         uid = request.args.get("uid") or request.args.get("user_id")
         server_name = request.args.get("server_name", "").upper()
         like_count = request.args.get("like_count", "10")
         
-        print(f"📥 Received request - UID: {uid}, Server: {server_name}, Likes: {like_count}")
+        print(f"📥 God's Plan - Received request: UID: {uid}, Server: {server_name}, Likes: {like_count}")
         
         # Input validation
         if not uid or not server_name:
             return jsonify({
-                "error": "UID and server_name are required",
-                "example": "/like?uid=123456&server_name=IND&like_count=10"
+                "error": "UID and server_name are required for God's Plan",
+                "example": "/like?uid=123456&server_name=IND&like_count=10",
+                "credits": {
+                    "Developer": "👑 God",
+                    "Instagram": "📱 _echo.del.alma_",
+                    "message": "God's needs proper parameters 🙏"
+                }
             }), 400
         
         try:
             uid = int(uid)
         except ValueError:
-            return jsonify({"error": "UID must be a valid number"}), 400
+            return jsonify({
+                "error": "UID must be a valid number for God's Plan",
+                "credits": {
+                    "Developer": "👑 God", 
+                    "Instagram": "📱 _echo.del.alma_"
+                }
+            }), 400
         
         try:
             like_count = int(like_count)
             if like_count < 1 or like_count > 100:
-                return jsonify({"error": "like_count must be between 1 and 100"}), 400
+                return jsonify({
+                    "error": "like_count must be between 1 and 100 for God's Plan",
+                    "credits": {
+                        "Developer": "👑 God",
+                        "Instagram": "📱 _echo.del.alma_"
+                    }
+                }), 400
         except ValueError:
-            return jsonify({"error": "like_count must be a valid number"}), 400
+            return jsonify({
+                "error": "like_count must be a valid number for God's Plan",
+                "credits": {
+                    "Developer": "👑 God",
+                    "Instagram": "📱 _echo.del.alma_"
+                }
+            }), 400
 
-        # Process the request
+        # Process the request - God's Plan in action yoo yoo!
         data = load_tokens(server_name)
         if not data:
-            return jsonify({"error": "No tokens available for this server"}), 500
+            return jsonify({
+                "error": "No tokens available for this server in God's Plan",
+                "credits": {
+                    "Developer": "👑 God",
+                    "Instagram": "📱 _echo.del.alma_"
+                }
+            }), 500
             
         token = data[0]['token']
         encrypted_uid = enc(uid)
         
         if not encrypted_uid:
-            return jsonify({"error": "Encryption failed"}), 500
+            return jsonify({
+                "error": "Encryption failed in God's Plan",
+                "credits": {
+                    "Developer": "👑 God",
+                    "Instagram": "📱 _echo.del.alma_"
+                }
+            }), 500
 
         # Get initial like count
-        print("📊 Getting initial like count...")
+        print("📊 God is counting...")
         before = make_request(encrypted_uid, server_name, token)
         if before is None:
-            return jsonify({"error": "Failed to get initial profile information"}), 500
+            return jsonify({
+                "error": "Failed to see the profile information by GOD",
+                "credits": {
+                    "Developer": "👑 God",
+                    "Instagram": "📱 _echo.del.alma_"
+                }
+            }), 500
             
         before_json = json.loads(MessageToJson(before))
         before_like = before_json.get('AccountInfo', {}).get('Likes', 0)
@@ -274,20 +337,25 @@ def handle_requests():
         
         # Get initial profile info
         initial_name = before_json.get('AccountInfo', {}).get('PlayerNickname', 'Unknown')
-        initial_level = before_json.get('AccountInfo', {}).get('Level', 'N/A')
         
-        print(f"📊 Initial likes: {before_like}, Player: {initial_name}, Level: {initial_level}")
+        print(f"📊 God's Plan - Initial likes: {before_like}, Player: {initial_name}")
         
-        # Send likes
-        print(f"🚀 Sending {like_count} likes...")
+        # Send likes - Executing God's Plan!
+        print(f"🚀 God is Sending {like_count} likes...")
         results = asyncio.run(send_multiple_requests(uid, server_name, like_count))
-        print(f"✅ Likes sent - Results: {results}")
+        print(f"✅ God's Plan - Likes sent: {results}")
         
         # Get updated like count
-        print("📊 Getting updated like count...")
+        print("📊 God's Plan - Getting updated like count...")
         after = make_request(encrypted_uid, server_name, token)
         if after is None:
-            return jsonify({"error": "Failed to get updated profile information"}), 500
+            return jsonify({
+                "error": "Failed to get updated profile information in God's Plan",
+                "credits": {
+                    "Developer": "👑 God",
+                    "Instagram": "📱 _echo.del.alma_"
+                }
+            }), 500
             
         after_json = json.loads(MessageToJson(after))
         after_like = int(after_json['AccountInfo']['Likes'])
@@ -313,73 +381,75 @@ def handle_requests():
             "Avatar": avatar,
             "RequestedLikes": like_count,
             "status": status,
+            "message": "God's Plan Executed Successfully! 🙏",
             "credits": {
-                "Developer": "God",
-                "Instagram": "_echo.del.alma_"
+                "Developer": "👑 God",
+                "Instagram": "📱 _echo.del.alma_",
+                "project": "God is very cruel"
             }
         }
         
-        print("🎉 Request completed successfully!")
+        print("🎉 God's Plan - Request completed successfully!")
+        print("🌟 God's Plan has been executed perfectly!")
+        print("📱 Instagram: _echo.del.alma_")
+        
         return jsonify(result)
         
     except Exception as e:
-        print(f"💥 Error in handle_requests: {e}")
+        print(f"💥 Error in God's Plan: {e}")
         traceback.print_exc()
         return jsonify({
-            "error": "Internal server error",
+            "error": "God's Plan encountered an internal error",
             "message": str(e),
             "credits": {
-                "Developer": "God",
-                "Instagram": "_echo.del.alma_"
+                "Developer": "👑 God",
+                "Instagram": "📱 _echo.del.alma_",
+                "message": "Even God's Plan has challenges sometimes 🙏"
             }
         }), 500
 
-# Debug route to see full profile data
-@app.route('/debug-request/<uid>/<server_name>')
-def debug_request(uid, server_name):
-    """Debug route to see what's happening with the request"""
+@app.route('/profile/<uid>/<server_name>')
+def get_profile(uid, server_name):
+    """God's Plan - Profile Debug Route 🙏"""
     try:
         data = load_tokens(server_name.upper())
-        if not data:
-            return jsonify({"error": "No tokens available"})
-            
         token = data[0]['token']
         encrypted_uid = enc(uid)
         
-        if not encrypted_uid:
-            return jsonify({"error": "Encryption failed"})
-        
-        url = get_server_url(server_name.upper(), "info")
-        edata = bytes.fromhex(encrypted_uid)
-        headers = get_headers(token)
-        
-        print(f"🔍 DEBUG: Sending request to {url}")
-        print(f"🔍 DEBUG: Headers: {headers}")
-        print(f"🔍 DEBUG: Encrypted UID length: {len(encrypted_uid)}")
-        
-        response = requests.post(url, data=edata, headers=headers, verify=True, timeout=30)
-        
-        debug_info = {
-            "url": url,
-            "status_code": response.status_code,
-            "response_headers": dict(response.headers),
-            "response_body_preview": response.text[:500] if response.text else "Empty response",
-            "response_hex": response.content.hex()[:100] + "..." if response.content else "No content"
-        }
-        
-        print(f"🔍 DEBUG: Response Status: {response.status_code}")
-        print(f"🔍 DEBUG: Response Headers: {dict(response.headers)}")
-        print(f"🔍 DEBUG: Response Body Preview: {response.text[:200]}")
-        
-        return jsonify(debug_info)
-        
+        profile = make_request(encrypted_uid, server_name.upper(), token)
+        if profile:
+            profile_json = json.loads(MessageToJson(profile))
+            return jsonify({
+                "profile_data": profile_json,
+                "message": "God's Plan Profile Debug",
+                "credits": {
+                    "Developer": "👑 God",
+                    "Instagram": "📱 _echo.del.alma_",
+                    "project": "God's Plan - Free Fire API"
+                }
+            })
+        else:
+            return jsonify({
+                "error": "Failed to get profile in God's Plan",
+                "credits": {
+                    "Developer": "👑 God",
+                    "Instagram": "📱 _echo.del.alma_"
+                }
+            }), 500
     except Exception as e:
         return jsonify({
-            "error": f"Debug request failed: {str(e)}",
-            "traceback": traceback.format_exc()
-        })
-# For Vercel
+            "error": str(e),
+            "credits": {
+                "Developer": "👑 God",
+                "Instagram": "📱 _echo.del.alma_"
+            }
+        }), 500
+
+# God's Plan - Vercel Handler
 app = app
 
 if __name__ == '__main__':
+    print("🌟 Starting God's Plan API Server...")
+    print("🙏 Developed by God | Instagram: _echo.del.alma_")
+    print("🚀 God's Plan is now running!")
     app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
