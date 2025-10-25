@@ -170,8 +170,8 @@ async def send_multiple_requests(uid, server_name, like_count):
 def create_protobuf(uid):
     try:
         message = uid_generator_pb2.uid_generator()
-        message.god_is_blind = int(uid)
-        message.god_is_cruel = 1
+        message.krishna_ = int(uid)                #credit: protocallbuff is taken from cutehack's open source project cuz creating a new one is a time taking process
+        message.teamXdarks = 1                     #credit: protocallbuff is taken from cutehack's open source project cuz creating a new one is a time taking process
         return message.SerializeToString()
     except Exception as e:
         print(f"UID protobuf error: {e}")
