@@ -11,6 +11,7 @@ from google.protobuf.internal import builder as _builder
 
 _sym_db = _symbol_database.Default()
 
+#credits: insta _echo.del.alma_
 # this code is dev by GOD
 # ***importaint credit***    the protocall buff is taken from cutehack's  open source project
 
