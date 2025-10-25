@@ -335,29 +335,49 @@ def handle_requests():
         }), 500
 
 # Debug route to see full profile data
-@app.route('/profile/<uid>/<server_name>')
-def get_profile(uid, server_name):
-    """Debug route to see ALL profile data"""
+@app.route('/debug-request/<uid>/<server_name>')
+def debug_request(uid, server_name):
+    """Debug route to see what's happening with the request"""
     try:
         data = load_tokens(server_name.upper())
+        if not data:
+            return jsonify({"error": "No tokens available"})
+            
         token = data[0]['token']
         encrypted_uid = enc(uid)
         
-        profile = make_request(encrypted_uid, server_name.upper(), token)
-        if profile:
-            profile_json = json.loads(MessageToJson(profile))
-            return jsonify({
-                "profile_data": profile_json,
-                "credits": {
-                    "Developer": "God",
-                    "Instagram": "_echo.del.alma_"
-                }
-            })
-        else:
-            return jsonify({"error": "Failed to get profile"}), 500
+        if not encrypted_uid:
+            return jsonify({"error": "Encryption failed"})
+        
+        url = get_server_url(server_name.upper(), "info")
+        edata = bytes.fromhex(encrypted_uid)
+        headers = get_headers(token)
+        
+        print(f"🔍 DEBUG: Sending request to {url}")
+        print(f"🔍 DEBUG: Headers: {headers}")
+        print(f"🔍 DEBUG: Encrypted UID length: {len(encrypted_uid)}")
+        
+        response = requests.post(url, data=edata, headers=headers, verify=True, timeout=30)
+        
+        debug_info = {
+            "url": url,
+            "status_code": response.status_code,
+            "response_headers": dict(response.headers),
+            "response_body_preview": response.text[:500] if response.text else "Empty response",
+            "response_hex": response.content.hex()[:100] + "..." if response.content else "No content"
+        }
+        
+        print(f"🔍 DEBUG: Response Status: {response.status_code}")
+        print(f"🔍 DEBUG: Response Headers: {dict(response.headers)}")
+        print(f"🔍 DEBUG: Response Body Preview: {response.text[:200]}")
+        
+        return jsonify(debug_info)
+        
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+        return jsonify({
+            "error": f"Debug request failed: {str(e)}",
+            "traceback": traceback.format_exc()
+        })
 # For Vercel
 app = app
 
