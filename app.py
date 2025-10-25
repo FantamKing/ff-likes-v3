@@ -74,26 +74,11 @@ print("🎉 ALL IMPORTS SUCCESSFUL - Starting God's Plan...")
 
 app = Flask(__name__)
 
-# ==================== DAILY TRACKER CLASS ====================
+# ==================== IN-MEMORY DAILY TRACKER (FIXED FOR VERCEL) ====================
 
 class DailyLikeTracker:
-    def __init__(self, filename="daily_likes.json"):
-        self.filename = filename
-        self.data = self.load_data()
-    
-    def load_data(self):
-        try:
-            with open(self.filename, "r") as f:
-                return json.load(f)
-        except FileNotFoundError:
-            return {}
-    
-    def save_data(self):
-        try:
-            with open(self.filename, "w") as f:
-                json.dump(self.data, f, indent=2)
-        except Exception as e:
-            print(f"Save error: {e}")
+    def __init__(self):
+        self.data = {}
     
     def get_reset_time(self):
         """Get next reset time (4:00 AM IST)"""
@@ -118,7 +103,6 @@ class DailyLikeTracker:
         
         if uid not in self.data:
             self.data[uid] = {"likes_sent": 0, "last_updated": current_time}
-            self.save_data()
         
         used_today = self.data[uid]["likes_sent"]
         remaining = max(0, 100 - used_today)
@@ -132,7 +116,6 @@ class DailyLikeTracker:
         if uid in self.data:
             self.data[uid]["likes_sent"] += likes_sent
             self.data[uid]["last_updated"] = time.time()
-            self.save_data()
     
     def clean_old_data(self):
         """Remove data older than 24 hours"""
@@ -145,9 +128,6 @@ class DailyLikeTracker:
         
         for uid in uids_to_remove:
             del self.data[uid]
-        
-        if uids_to_remove:
-            self.save_data()
 
 # Initialize tracker
 tracker = DailyLikeTracker()
@@ -161,17 +141,23 @@ def get_headers(token):
         'Accept-Encoding': "gzip",
         'Authorization': f"Bearer {token}",
         'Content-Type': "application/x-www-form-urlencoded",
-        'Expect': "100-continue",
-        'X-Unity-Version': "2018.4.11f1",
+        'X-Unity-Version': "2022.3.21f1",
         'X-GA': "v1 1",
-        'ReleaseVersion': "OB50"
+        'ReleaseVersion': "OB55"
     }
 
 def load_tokens(server_name):
     try:
         if server_name == "IND":
             with open("token_ind.json", "r") as f:
-                return json.load(f)
+                data = json.load(f)
+                # Handle both array and object formats
+                if isinstance(data, list):
+                    return data
+                elif isinstance(data, dict) and "token" in data:
+                    return [data]  # Convert object to array
+                else:
+                    return [{"token": "default_token"}]
         elif server_name in {"BR", "US", "SAC", "NA"}:
             with open("token_br.json", "r") as f:
                 return json.load(f)
@@ -274,7 +260,17 @@ def make_request(encrypt, server_name, token):
         headers = get_headers(token)
 
         response = requests.post(url, data=edata, headers=headers, verify=True, timeout=30)
+        
+        # Check if response is successful
+        if response.status_code != 200:
+            print(f"API returned status: {response.status_code}")
+            return None
+            
         hex_data = response.content.hex()
+        if not hex_data:
+            print("Empty response from API")
+            return None
+            
         binary = bytes.fromhex(hex_data)
         return decode_protobuf(binary)
     except Exception as e:
@@ -453,68 +449,6 @@ def handle_requests():
                 "Instagram": "📱 _echo.del.alma_"
             }
         }), 500
-
-@app.route('/debug-request/<uid>/<server_name>')
-def debug_request(uid, server_name):
-    """Debug route to see what's happening with the request"""
-    try:
-        data = load_tokens(server_name.upper())
-        if not data:
-            return jsonify({"error": "No tokens available"})
-            
-        token = data[0]['token']
-        encrypted_uid = enc(uid)
-        
-        if not encrypted_uid:
-            return jsonify({"error": "Encryption failed"})
-        
-        url = get_server_url(server_name.upper(), "info")
-        edata = bytes.fromhex(encrypted_uid)
-        headers = get_headers(token)
-        
-        print(f"🔍 DEBUG: Sending request to {url}")
-        print(f"🔍 DEBUG: Headers: {headers}")
-        print(f"🔍 DEBUG: Encrypted UID length: {len(encrypted_uid)}")
-        
-        response = requests.post(url, data=edata, headers=headers, verify=True, timeout=30)
-        
-        debug_info = {
-            "url": url,
-            "status_code": response.status_code,
-            "response_headers": dict(response.headers),
-            "response_body_preview": response.text[:500] if response.text else "Empty response",
-            "response_hex": response.content.hex()[:100] + "..." if response.content else "No content"
-        }
-        
-        print(f"🔍 DEBUG: Response Status: {response.status_code}")
-        print(f"🔍 DEBUG: Response Headers: {dict(response.headers)}")
-        print(f"🔍 DEBUG: Response Body Preview: {response.text[:200]}")
-        
-        return jsonify(debug_info)
-        
-    except Exception as e:
-        return jsonify({
-            "error": f"Debug request failed: {str(e)}",
-            "traceback": traceback.format_exc()
-        })
-
-@app.route('/daily-stats/<uid>')
-def daily_stats(uid):
-    """Check daily like statistics for a UID"""
-    try:
-        can_send, used_today, remaining, reset_time = tracker.can_send_likes(uid, 1)
-        
-        return jsonify({
-            "uid": uid,
-            "daily_stats": {
-                "used_today": used_today,
-                "remaining_today": remaining,
-                "reset_time": reset_time,
-                "can_send_more": can_send > 0
-            }
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)})
 
 # For Vercel
 app = app
