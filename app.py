@@ -300,6 +300,21 @@ def home():
         }
     })
 
+
+@app.route('/debug-tokens')      #for debuging the route
+def debug_tokens():
+    """Check if tokens are loading correctly"""
+    try:
+        tokens = load_tokens("IND")
+        return jsonify({
+            "tokens_found": len(tokens),
+            "first_token_preview": tokens[0]['token'][:50] + "..." if tokens else "No tokens",
+            "token_format": "correct" if isinstance(tokens, list) else "wrong"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)})
+        
+
 @app.route('/like', methods=['GET'])
 def handle_requests():
     try:
