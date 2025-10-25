@@ -217,7 +217,6 @@ def home():
         "message": "God is Opening his gate!",
         "status": "opening...",
         "Yoo! just add & edit this after the page's url": "/like?uid=UID&server_name=SERVER&like_count=how much like want",
-        "ㅤㅤ",
         "credits": {
             "Developer": "God",
             "Instagram": "_echo.del.alma_"
