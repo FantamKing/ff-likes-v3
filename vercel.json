@@ -2,14 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "Gods_Plan.py",
+      "src": "god's_plan.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/Gods_Plan.py"
+      "dest": "/god's_plan.py"
     }
   ]
 }
