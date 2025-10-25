@@ -305,7 +305,7 @@ def handle_requests():
         
         result = {
             "Likes before Wish": before_like,
-            "God give you ": like_given, " likes",
+            "God give you ": like_given,
             "Likes after Wish": after_like,
             "PlayerNickname": name,
             "UID": player_id,
