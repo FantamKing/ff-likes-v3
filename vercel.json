@@ -4,25 +4,9 @@
     {
       "src": "Gods_Plan.py",
       "use": "@vercel/python"
-    },
-    {
-      "src": "token_generator.py",
-      "use": "@vercel/python"
     }
   ],
   "routes": [
-    {
-      "src": "/like/(.*)",
-      "dest": "/Gods_Plan.py"
-    },
-    {
-      "src": "/profile/(.*)", 
-      "dest": "/Gods_Plan.py"
-    },
-    {
-      "src": "/tokens/(.*)",
-      "dest": "/token_generator.py"
-    },
     {
       "src": "/(.*)",
       "dest": "/Gods_Plan.py"
