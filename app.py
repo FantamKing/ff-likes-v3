@@ -537,44 +537,75 @@ def debug_request(uid, server_name):
 
 # ==================== MONGODB TOKEN MANAGER ====================
 
-class MongoDBTokenManager:
-    def __init__(self):
+def connect(self):
+    """Connect to MongoDB Atlas"""
+    try:
+        connection_string = os.environ.get('MONGODB_URI')
+        if not connection_string:
+            print("❌ MONGODB_URI not found in environment variables")
+            return False
+        
+        print(f"🔗 Connecting to MongoDB...")
+        
+        # Add timeout and better error handling
+        self.client = MongoClient(
+            connection_string, 
+            serverSelectionTimeoutMS=5000,
+            connectTimeoutMS=5000,
+            socketTimeoutMS=5000
+        )
+        
+        # Test the connection with a simple command
+        self.client.admin.command('ping')
+        
+        # Get the database from connection string
+        from urllib.parse import urlparse
+        parsed_uri = urlparse(connection_string)
+        db_name = parsed_uri.path[1:] if parsed_uri.path else 'ff_likes_db'  # Remove leading slash
+        
+        self.db = self.client[db_name]
+        print(f"✅ Connected to MongoDB Atlas - Database: {db_name}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ MongoDB connection failed: {e}")
         self.client = None
         self.db = None
-        self.connect()
-    
-    def connect(self):
-        """Connect to MongoDB Atlas"""
-        try:
-            connection_string = os.environ.get('MONGODB_URI')
-            if not connection_string:
-                print("❌ MONGODB_URI not found in environment variables")
-                return
-            
-            self.client = MongoClient(connection_string)
-            self.db = self.client.get_database()  # Let it use database from connection string
-            print("✅ Connected to MongoDB Atlas")
-        except Exception as e:
-            print(f"❌ MongoDB connection failed: {e}")
+        return False
+
     
     def store_tokens(self, server_name, tokens):
-        """Store tokens for a server"""
-        try:
-            result = self.db.tokens.update_one(
-                {"server": server_name},
-                {
-                    "$set": {
-                        "tokens": tokens,
-                        "last_updated": time.time(),
-                        "expires_at": time.time() + (4 * 3600)  # 4 hours
-                    }
-                },
-                upsert=True
-            )
-            return result.acknowledged
-        except Exception as e:
-            print(f"Token storage error: {e}")
+    """Store tokens for a server"""
+    try:
+        # Ensure we have a valid connection
+        if not self.db:
+            print("🔄 No active MongoDB connection, reconnecting...")
+            if not self.connect():
+                print("❌ Reconnection failed")
+                return False
+        
+        result = self.db.tokens.update_one(
+            {"server": server_name},
+            {
+                "$set": {
+                    "tokens": tokens,
+                    "last_updated": time.time(),
+                    "expires_at": time.time() + (4 * 3600)
+                }
+            },
+            upsert=True
+        )
+        
+        if result.acknowledged:
+            print(f"✅ Successfully stored {len(tokens)} tokens for {server_name}")
+            return True
+        else:
+            print(f"❌ Token storage failed for {server_name}")
             return False
+            
+    except Exception as e:
+        print(f"💥 Token storage error: {e}")
+        return False
     
     def get_tokens(self, server_name):
         """Get tokens for a server"""
@@ -723,6 +754,39 @@ def load_tokens(server_name):
         return [{"token": "default_token"}]
 
 # ==================== MONGODB MANAGEMENT ROUTES ====================
+
+@app.route('/test-connection')
+def test_connection():
+    """Test MongoDB connection with detailed info"""
+    try:
+        # Test connection
+        connection_works = mongo_manager.connect()
+        
+        if connection_works and mongo_manager.db:
+            # Try to list collections to verify database access
+            collections = mongo_manager.db.list_collection_names()
+            
+            return jsonify({
+                "status": "connected",
+                "database": mongo_manager.db.name,
+                "collections": collections,
+                "collections_count": len(collections)
+            })
+        else:
+            return jsonify({
+                "status": "failed",
+                "error": "Could not establish MongoDB connection",
+                "check": "Verify MONGODB_URI environment variable"
+            })
+            
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "error": str(e)
+        })
+
+
+
 
 @app.route('/mongodb-status')
 def mongodb_status():
