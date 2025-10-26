@@ -381,6 +381,105 @@ def debug_request(uid, server_name):
         })
 
 
+# ==================== TOKEN REFRESH ROUTE ====================
+
+@app.route('/generate-fresh-tokens')
+def generate_fresh_tokens():
+    """Generate fresh tokens immediately"""
+    try:
+        import hashlib
+        import hmac
+        import base64
+        import time
+        
+        def generate_jwt_token(uid, password, account_id, name, region):
+            """Generate JWT token"""
+            try:
+                # JWT Header
+                header = {
+                    "alg": "HS256",
+                    "typ": "JWT"
+                }
+                
+                # JWT Payload
+                current_time = int(time.time())
+                payload = {
+                    "uid": int(uid),
+                    "account_id": int(account_id),
+                    "name": name,
+                    "region": region,
+                    "iat": current_time,
+                    "exp": current_time + (24 * 60 * 60),
+                    "iss": "freefire",
+                    "aud": "freefire-client"
+                }
+                
+                # Encode header and payload
+                header_encoded = base64.urlsafe_b64encode(
+                    json.dumps(header).encode()
+                ).decode().rstrip('=')
+                
+                payload_encoded = base64.urlsafe_b64encode(
+                    json.dumps(payload).encode()
+                ).decode().rstrip('=')
+                
+                # Create signature
+                message = f"{header_encoded}.{payload_encoded}"
+                signature = hmac.new(
+                    password.encode() if isinstance(password, str) else password,
+                    message.encode(),
+                    hashlib.sha256
+                ).digest()
+                
+                signature_encoded = base64.urlsafe_b64encode(signature).decode().rstrip('=')
+                
+                # Combine to create JWT
+                jwt_token = f"{header_encoded}.{payload_encoded}.{signature_encoded}"
+                return jwt_token
+                
+            except Exception as e:
+                print(f"JWT generation error: {e}")
+                return None
+        
+        # Load accounts
+        with open("accounts.json", "r") as f:
+            accounts = json.load(f)
+        
+        tokens = []
+        
+        for account in accounts:
+            uid = account.get("uid")
+            password = account.get("password")
+            account_id = account.get("account_id", 1)
+            name = account.get("name", "Guest")
+            region = account.get("region", "IND").upper()
+            
+            if not uid or not password:
+                continue
+            
+            token = generate_jwt_token(uid, password, account_id, name, region)
+            if token:
+                tokens.append({"token": token})
+                print(f"✅ Generated token for {name}")
+        
+        # Save fresh tokens
+        with open("token_ind.json", "w") as f:
+            json.dump(tokens, f, indent=2)
+        
+        return jsonify({
+            "status": "success",
+            "tokens_generated": len(tokens),
+            "message": f"Generated {len(tokens)} fresh tokens for IND server",
+            "next_steps": "Now test: /like?uid=1246440155&server_name=IND&like_count=2"
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "error": f"Token generation failed: {str(e)}",
+            "check": "Make sure accounts.json exists with valid account details"
+        })
+
+
 # For Vercel
 app = app
 
