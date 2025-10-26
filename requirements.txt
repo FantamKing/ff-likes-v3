@@ -5,3 +5,5 @@ googleapis-common-protos
 pycryptodome
 protobuf
 Werkzeug
+pymongo
+dnspython
