@@ -1,4 +1,5 @@
 # Credit:- "insta :-_echo.del.alma_"
+# Developed by God
 
 import sys
 import traceback
@@ -70,7 +71,7 @@ print("🎉 ALL IMPORTS SUCCESSFUL - Starting Flask app...")
 
 app = Flask(__name__)
 
-# ==================== YOUR LIKE FUNCTIONALITY ====================
+# ==================== MAIN FUNCTIONALITY (IMP) ====================
 
 def get_headers(token):
     return {
@@ -82,7 +83,7 @@ def get_headers(token):
         'Expect': "100-continue",
         'X-Unity-Version': "2018.4.11f1",
         'X-GA': "v1 1",
-        'ReleaseVersion': "OB50"  # UPDATED TO OB50
+        'ReleaseVersion': "OB50"  # UPDATE according to the ob version
     }
 
 def load_tokens(server_name):
@@ -169,8 +170,8 @@ async def send_multiple_requests(uid, server_name, like_count):
 def create_protobuf(uid):
     try:
         message = uid_generator_pb2.uid_generator()
-        message.krishna_ = int(uid)
-        message.teamXdarks = 1
+        message.krishna_ = int(uid)        # this protobuf is taken from cutehack's open source program, making own protobuf is a time taking process so I give him the credit for this.
+        message.teamXdarks = 1             # this protobuf is taken from cutehack's open source program, making own protobuf is a time taking process so I give him the credit for this.
         return message.SerializeToString()
     except Exception as e:
         print(f"UID protobuf error: {e}")
@@ -213,9 +214,9 @@ def decode_protobuf(binary):
 @app.route('/')
 def home():
     return jsonify({
-        "message": "Free Fire Likes API - FULLY WORKING!",
-        "status": "active",
-        "usage": "/like?uid=USER_ID&server_name=SERVER&like_count=COUNT",
+        "message": "God is Opening his gate!",
+        "status": "opening...",
+        "Yoo! just add & edit this after the page's url": "/like?uid=UID&server_name=SERVER&like_count=how much like want",
         "credits": {
             "Developer": "God",
             "Instagram": "_echo.del.alma_"
@@ -247,7 +248,7 @@ def handle_requests():
         try:
             like_count = int(like_count)
             if like_count < 1 or like_count > 100:
-                return jsonify({"error": "like_count must be between 1 and 100"}), 400
+                return jsonify({"error": "Hey greedy...!   like_count must be between 1 and 100"}), 400
         except ValueError:
             return jsonify({"error": "like_count must be a valid number"}), 400
 
@@ -266,7 +267,7 @@ def handle_requests():
         print("📊 Getting initial like count...")
         before = make_request(encrypted_uid, server_name, token)
         if before is None:
-            return jsonify({"error": "Failed to get initial profile information"}), 500
+            return jsonify({"error": "God is not in a mood right now, gate is closing...."}), 500
             
         before_json = json.loads(MessageToJson(before))
         before_like = before_json.get('AccountInfo', {}).get('Likes', 0)
@@ -303,9 +304,9 @@ def handle_requests():
         status = 1 if like_given > 0 else 2
         
         result = {
-            "LikesGivenByAPI": like_given,
-            "LikesafterCommand": after_like,
-            "LikesbeforeCommand": before_like,
+            "Likes before Wish": before_like,
+            "God give you ": like_given,
+            "Likes after Wish": after_like,
             "PlayerNickname": name,
             "UID": player_id,
             "Level": level,
@@ -378,6 +379,8 @@ def debug_request(uid, server_name):
             "error": f"Debug request failed: {str(e)}",
             "traceback": traceback.format_exc()
         })
+
+
 # For Vercel
 app = app
 
