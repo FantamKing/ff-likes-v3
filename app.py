@@ -546,11 +546,13 @@ class MongoDBTokenManager:
     def connect(self):
         """Connect to MongoDB Atlas"""
         try:
-            # Get connection string from environment variable
-            connection_string = os.environ.get('MONGODB_URI', 'your_connection_string_here')
+            connection_string = os.environ.get('MONGODB_URI')
+            if not connection_string:
+                print("❌ MONGODB_URI not found in environment variables")
+                return
             
             self.client = MongoClient(connection_string)
-            self.db = self.client.ff_likes_db
+            self.db = self.client.get_database()  # Let it use database from connection string
             print("✅ Connected to MongoDB Atlas")
         except Exception as e:
             print(f"❌ MongoDB connection failed: {e}")
