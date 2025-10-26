@@ -237,7 +237,7 @@ def view_mongodb_tokens():
 
 
 
-@app.route('/test-mongodb')      #for checkinging the mongodb status
+@app.route('/test-mongodb')      #for checkinging the mongodb status!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 def test_mongodb():
     """Test MongoDB connection with error details"""
     try:
@@ -280,6 +280,67 @@ def debug_token_storage():
             
     except Exception as e:
         return jsonify({"error": str(e), "traceback": traceback.format_exc()})
+
+
+
+
+
+
+
+@app.route('/debug-mongodb-write')    #for checking the write operation in mongodb!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+def debug_mongodb_write():
+    """Debug MongoDB write operations"""
+    try:
+        # Test basic connection
+        mongo_manager.db.command('ping')
+        
+        # Test collection access
+        collection = mongo_manager.db.tokens
+        
+        # Test insert
+        test_data = {
+            "server": "TEST",
+            "tokens": [{"token": "test_token"}],
+            "last_updated": time.time(),
+            "expires_at": time.time() + 3600
+        }
+        
+        insert_result = collection.insert_one(test_data)
+        insert_success = insert_result.acknowledged
+        
+        # Test find
+        found_data = collection.find_one({"server": "TEST"})
+        find_success = bool(found_data)
+        
+        # Test update
+        update_result = collection.update_one(
+            {"server": "TEST"}, 
+            {"$set": {"tokens": [{"token": "updated_token"}]}}
+        )
+        update_success = update_result.acknowledged
+        
+        # Cleanup
+        delete_result = collection.delete_one({"server": "TEST"})
+        
+        return jsonify({
+            "ping_success": True,
+            "insert_success": insert_success,
+            "find_success": find_success,
+            "update_success": update_success,
+            "inserted_id": str(insert_result.inserted_id) if insert_success else "None",
+            "found_data": str(found_data) if found_data else "None",
+            "database": mongo_manager.db.name,
+            "collection": "tokens"
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "traceback": traceback.format_exc()
+        })
+
+
 
 
 
