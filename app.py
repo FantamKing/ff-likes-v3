@@ -575,7 +575,7 @@ def connect(self):
 
     
     def store_tokens(self, server_name, tokens):
-    """Store tokens for a server"""
+        """Store tokens for a server"""
     try:
         # Ensure we have a valid connection
         if not self.db:
