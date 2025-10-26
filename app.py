@@ -99,7 +99,7 @@ def get_headers(token):
 
 
 
-#==============================================================================
+#===============================================================================================================================================================================================================
 
 
 
@@ -211,10 +211,10 @@ def decode_protobuf(binary):
         print(f"Protobuf decode error: {e}")
         return None
 
-# ==================== FLASK ROUTES ====================
+# ==================== FLASK ROUTES =====================================================================================================================================================================================================
 
 
-@app.route('/view-mongodb-tokens')
+@app.route('/view-mongodb-tokens')      #for viwing the tokens status!!!!!!!!!!!!!!!!!!!!!!!!!!
 def view_mongodb_tokens():
     """View actual tokens stored in MongoDB"""
     try:
@@ -233,6 +233,25 @@ def view_mongodb_tokens():
             
     except Exception as e:
         return jsonify({"error": str(e)})
+
+
+
+
+@app.route('/test-mongodb')      #for checkinging the mongodb status
+def test_mongodb():
+    """Test MongoDB connection with error details"""
+    try:
+        # Test connection
+        mongo_manager.db.command('ping')
+        return jsonify({"status": "connected", "message": "MongoDB authentication successful"})
+    except Exception as e:
+        return jsonify({
+            "error": "MongoDB connection failed",
+            "details": str(e),
+            "check": "Verify MONGODB_URI environment variable has correct username/password"
+        })
+
+
 
 
 
