@@ -255,6 +255,44 @@ def test_mongodb():
 
 
 
+@app.route('/debug-token-storage')     #for  seeing the token storage in mongodb
+def debug_token_storage():
+    """Debug why tokens aren't being stored"""
+    try:
+        # Test token generation
+        tokens = mongo_manager.refresh_tokens("IND")
+        
+        if tokens:
+            # Test storage
+            storage_success = mongo_manager.store_tokens("IND", tokens)
+            
+            # Verify storage
+            stored_tokens = mongo_manager.get_tokens("IND")
+            
+            return jsonify({
+                "tokens_generated": len(tokens),
+                "storage_success": storage_success,
+                "tokens_after_storage": len(stored_tokens) if stored_tokens else 0,
+                "stored_tokens_preview": stored_tokens[:2] if stored_tokens else "None"
+            })
+        else:
+            return jsonify({"error": "No tokens generated"})
+            
+    except Exception as e:
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()})
+
+
+
+
+
+        
+
+
+#========================================================================================================================================
+
+
+
+
 @app.route('/')
 def home():
     return jsonify({
