@@ -9,6 +9,11 @@ import sys
 import traceback
 
 
+import time
+import hashlib
+import hmac
+import base64
+
 
 print("🚀 STARTING IMPORTS - PHASE 1")
 
@@ -92,20 +97,11 @@ def get_headers(token):
         'ReleaseVersion': "OB50"  # UPDATE according to the ob version
     }
 
-def load_tokens(server_name):
-    try:
-        if server_name == "IND":
-            with open("token_ind.json", "r") as f:
-                return json.load(f)
-        elif server_name in {"BR", "US", "SAC", "NA"}:
-            with open("token_br.json", "r") as f:
-                return json.load(f)
-        else:
-            with open("token_bd.json", "r") as f:
-                return json.load(f)
-    except Exception as e:
-        print(f"Token loading error: {e}")
-        return [{"token": "default_token"}]
+
+
+#==============================================================================
+
+
 
 def encrypt_message(plaintext):
     try:
