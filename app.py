@@ -213,6 +213,29 @@ def decode_protobuf(binary):
 
 # ==================== FLASK ROUTES ====================
 
+
+@app.route('/view-mongodb-tokens')
+def view_mongodb_tokens():
+    """View actual tokens stored in MongoDB"""
+    try:
+        tokens_data = mongo_manager.db.tokens.find_one({"server": "IND"})
+        
+        if tokens_data:
+            tokens = tokens_data.get('tokens', [])
+            return jsonify({
+                "tokens_in_mongodb": tokens,
+                "total_tokens": len(tokens),
+                "last_updated": time.ctime(tokens_data.get('last_updated', 0)),
+                "expires_at": time.ctime(tokens_data.get('expires_at', 0))
+            })
+        else:
+            return jsonify({"error": "No tokens found in MongoDB for IND server"})
+            
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+
 @app.route('/')
 def home():
     return jsonify({
