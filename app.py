@@ -592,6 +592,25 @@ def refresh_mongodb_tokens(server_name):
         "message": f"Tokens refreshed in MongoDB for {server_name}" if tokens else f"Failed to refresh tokens for {server_name}"
     })
 
+
+
+
+@app.route('/debug-env')
+def debug_env():
+    """Check if environment variables are loaded"""
+    mongodb_uri = os.environ.get('MONGODB_URI')
+    
+    return jsonify({
+        "MONGODB_URI_exists": bool(mongodb_uri),
+        "MONGODB_URI_preview": mongodb_uri[:20] + "..." if mongodb_uri else "Not found",
+        "all_env_vars": list(os.environ.keys())
+    })
+
+
+
+
+
+
 @app.route('/debug-databases')
 def debug_databases():
     """See what databases are available"""
