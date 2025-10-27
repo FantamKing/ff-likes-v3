@@ -408,6 +408,7 @@ def test_connection():
         client, db = get_mongodb_connection()
         if client and db:
             collections = db.list_collection_names()
+            client.close()  # Close the connection
             return jsonify({
                 "status": "connected",
                 "database": db.name,
@@ -425,6 +426,48 @@ def test_connection():
             "status": "error",
             "error": str(e)
         })
+
+
+
+
+@app.route('/test-all-connections')
+def test_all_connections():
+    """Test all MongoDB connection methods"""
+    results = {}
+    
+    # Test 1: Direct connection (the one that works)
+    try:
+        connection_string = os.environ.get('MONGODB_URI')
+        client = MongoClient(connection_string, serverSelectionTimeoutMS=5000)
+        client.admin.command('ping')
+        results['direct_connection'] = {"status": "success", "message": "Direct connection works"}
+        client.close()
+    except Exception as e:
+        results['direct_connection'] = {"status": "failed", "error": str(e)}
+    
+    # Test 2: Our get_mongodb_connection function
+    try:
+        client, db = get_mongodb_connection()
+        if client and db:
+            results['function_connection'] = {"status": "success", "database": db.name}
+            client.close()
+        else:
+            results['function_connection'] = {"status": "failed", "error": "get_mongodb_connection returned None"}
+    except Exception as e:
+        results['function_connection'] = {"status": "failed", "error": str(e)}
+    
+    # Test 3: Environment variable
+    results['environment'] = {
+        "MONGODB_URI_exists": bool(os.environ.get('MONGODB_URI')),
+        "MONGODB_URI_length": len(os.environ.get('MONGODB_URI', ''))
+    }
+    
+    return jsonify(results)
+
+
+
+
+
 
 @app.route('/view-mongodb-tokens')
 def view_mongodb_tokens():
