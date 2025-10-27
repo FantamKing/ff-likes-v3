@@ -1,4 +1,4 @@
-app.py                                                                                                                                   # Credit:- "insta :-_echo.del.alma_"
+# Credit:- "insta :-_echo.del.alma_"
 # Developed by God
 
 from pymongo import MongoClient
@@ -56,7 +56,6 @@ try:
     import aiohttp
     import requests
     import json
-    import os
     print("✅ Utilities imported successfully")
 except Exception as e:
     print(f"💥 UTILITIES IMPORT FAILED: {e}")
