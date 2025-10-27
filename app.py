@@ -419,10 +419,14 @@ def decode_protobuf(binary):
 def test_connection():
     """Test MongoDB connection with detailed info"""
     try:
-        # Test connection
-        connection_works = mongo_manager.connect()
+        # Reconnect if needed
+        if not mongo_manager.client:
+            mongo_manager.connect()
         
-        if connection_works and mongo_manager.db:
+        if mongo_manager.client and mongo_manager.db:
+            # Test with a simple command
+            mongo_manager.client.admin.command('ping')
+            
             # Try to list collections to verify database access
             collections = mongo_manager.db.list_collection_names()
             
@@ -430,20 +434,23 @@ def test_connection():
                 "status": "connected",
                 "database": mongo_manager.db.name,
                 "collections": collections,
-                "collections_count": len(collections)
+                "collections_count": len(collections),
+                "message": "MongoDB connection successful"
             })
         else:
             return jsonify({
                 "status": "failed",
-                "error": "Could not establish MongoDB connection",
-                "check": "Verify MONGODB_URI environment variable"
+                "error": "MongoDB client or database not initialized",
+                "check": "Check MongoDB connection in MongoDBTokenManager"
             })
             
     except Exception as e:
         return jsonify({
             "status": "error",
-            "error": str(e)
+            "error": str(e),
+            "message": "MongoDB connection failed"
         })
+        
 
 @app.route('/view-mongodb-tokens')
 def view_mongodb_tokens():
