@@ -9,7 +9,6 @@ import time
 import hashlib
 import hmac
 import base64
-from urllib.parse import urlparse
 
 print("🚀 STARTING IMPORTS - PHASE 1")
 
@@ -77,210 +76,205 @@ print("🎉 ALL IMPORTS SUCCESSFUL - Starting Flask app...")
 
 app = Flask(__name__)
 
-# ==================== MONGODB TOKEN MANAGER ====================
+# ==================== SIMPLE MONGODB TOKEN MANAGER ====================
 
-class MongoDBTokenManager:
-    def __init__(self):
-        self.client = None
-        self.db = None
-        # Don't auto-connect in __init__, connect when needed
-        print("📦 MongoDBTokenManager initialized (lazy connection)")
-    
-    def connect(self):
-        """Connect to MongoDB Atlas"""
-        try:
-            connection_string = os.environ.get('MONGODB_URI')
-            if not connection_string:
-                print("❌ MONGODB_URI not found in environment variables")
-                return False
-            
-            print(f"🔗 Connecting to MongoDB...")
-            
-            # Add timeout and better error handling
-            self.client = MongoClient(
-                connection_string, 
-                serverSelectionTimeoutMS=10000,  # Increased timeout
-                connectTimeoutMS=10000,
-                socketTimeoutMS=10000,
-                retryWrites=True,
-                maxPoolSize=10
-            )
-            
-            # Test the connection with a simple command
-            self.client.admin.command('ping')
-            
-            # Use the default database from connection string
-            self.db = self.client.get_database()
-            print(f"✅ Connected to MongoDB Atlas - Database: {self.db.name}")
-            return True
-            
-        except Exception as e:
-            print(f"❌ MongoDB connection failed: {e}")
-            self.client = None
-            self.db = None
+def get_mongodb_connection():
+    """Get MongoDB connection - simple and reliable"""
+    try:
+        connection_string = os.environ.get('MONGODB_URI')
+        if not connection_string:
+            print("❌ MONGODB_URI not found")
+            return None, None
+        
+        client = MongoClient(
+            connection_string, 
+            serverSelectionTimeoutMS=10000,
+            connectTimeoutMS=10000,
+            socketTimeoutMS=10000
+        )
+        
+        # Test connection
+        client.admin.command('ping')
+        db = client.get_database()
+        
+        print(f"✅ MongoDB connected - Database: {db.name}")
+        return client, db
+        
+    except Exception as e:
+        print(f"❌ MongoDB connection failed: {e}")
+        return None, None
+
+def store_tokens(server_name, tokens):
+    """Store tokens in MongoDB"""
+    try:
+        client, db = get_mongodb_connection()
+        if not db:
             return False
-    
-    def ensure_connection(self):
-        """Ensure we have a valid connection"""
-        try:
-            if not self.client:
-                return self.connect()
             
-            # Test existing connection
-            self.client.admin.command('ping')
+        result = db.tokens.update_one(
+            {"server": server_name},
+            {
+                "$set": {
+                    "tokens": tokens,
+                    "last_updated": time.time(),
+                    "expires_at": time.time() + (4 * 3600)
+                }
+            },
+            upsert=True
+        )
+        
+        client.close()
+        return result.acknowledged
+    except Exception as e:
+        print(f"Token storage error: {e}")
+        return False
+
+def get_tokens(server_name):
+    """Get tokens from MongoDB"""
+    try:
+        client, db = get_mongodb_connection()
+        if not db:
+            return None
+            
+        data = db.tokens.find_one({"server": server_name})
+        client.close()
+        
+        if data and data.get('tokens'):
+            # Check if tokens are expired
+            if time.time() > data.get('expires_at', 0):
+                print(f"🔄 Tokens for {server_name} expired, need refresh")
+                return None
+            return data['tokens']
+        return None
+    except Exception as e:
+        print(f"Token retrieval error: {e}")
+        return None
+
+def should_refresh_tokens(server_name):
+    """Check if tokens need refresh"""
+    try:
+        client, db = get_mongodb_connection()
+        if not db:
             return True
-        except:
-            # Reconnect if ping fails
-            return self.connect()
-    
-    def store_tokens(self, server_name, tokens):
-        """Store tokens for a server"""
-        try:
-            # Ensure we have a valid connection
-            if not self.db:
-                print("🔄 No active MongoDB connection, reconnecting...")
-                if not self.connect():
-                    print("❌ Reconnection failed")
-                    return False
             
-            result = self.db.tokens.update_one(
-                {"server": server_name},
-                {
-                    "$set": {
-                        "tokens": tokens,
-                        "last_updated": time.time(),
-                        "expires_at": time.time() + (4 * 3600)
-                    }
-                },
-                upsert=True
-            )
-            
-            if result.acknowledged:
-                print(f"✅ Successfully stored {len(tokens)} tokens for {server_name}")
-                return True
-            else:
-                print(f"❌ Token storage failed for {server_name}")
-                return False
-                
-        except Exception as e:
-            print(f"💥 Token storage error: {e}")
-            return False
-    
-    def get_tokens(self, server_name):
-        """Get tokens for a server"""
-        try:
-            data = self.db.tokens.find_one({"server": server_name})
-            if data and data.get('tokens'):
-                # Check if tokens are expired
-                if time.time() > data.get('expires_at', 0):
-                    print(f"🔄 Tokens for {server_name} expired, need refresh")
-                    return None
-                return data['tokens']
-            return None
-        except Exception as e:
-            print(f"Token retrieval error: {e}")
-            return None
-    
-    def should_refresh_tokens(self, server_name):
-        """Check if tokens need refresh"""
-        try:
-            data = self.db.tokens.find_one({"server": server_name})
-            if not data:
-                return True
-            return time.time() > data.get('expires_at', 0)
-        except Exception as e:
-            print(f"Token check error: {e}")
+        data = db.tokens.find_one({"server": server_name})
+        client.close()
+        
+        if not data:
             return True
-    
-    def generate_jwt_token(self, uid, password, account_id, name, region):
-        """Generate JWT token (same as before)"""
-        try:
-            header = {
-                "alg": "HS256",
-                "typ": "JWT"
-            }
+        return time.time() > data.get('expires_at', 0)
+    except Exception as e:
+        print(f"Token check error: {e}")
+        return True
+
+def generate_jwt_token(uid, password, account_id, name, region):
+    """Generate JWT token"""
+    try:
+        header = {
+            "alg": "HS256",
+            "typ": "JWT"
+        }
+        
+        current_time = int(time.time())
+        payload = {
+            "uid": int(uid),
+            "account_id": int(account_id),
+            "name": name,
+            "region": region,
+            "iat": current_time,
+            "exp": current_time + (24 * 60 * 60),
+            "iss": "freefire",
+            "aud": "freefire-client"
+        }
+        
+        header_encoded = base64.urlsafe_b64encode(
+            json.dumps(header).encode()
+        ).decode().rstrip('=')
+        
+        payload_encoded = base64.urlsafe_b64encode(
+            json.dumps(payload).encode()
+        ).decode().rstrip('=')
+        
+        message = f"{header_encoded}.{payload_encoded}"
+        signature = hmac.new(
+            password.encode() if isinstance(password, str) else password,
+            message.encode(),
+            hashlib.sha256
+        ).digest()
+        
+        signature_encoded = base64.urlsafe_b64encode(signature).decode().rstrip('=')
+        
+        jwt_token = f"{header_encoded}.{payload_encoded}.{signature_encoded}"
+        return jwt_token
+        
+    except Exception as e:
+        print(f"JWT generation error: {e}")
+        return None
+
+def refresh_tokens(server_name):
+    """Refresh tokens for a server"""
+    try:
+        # Load accounts from environment variable or file
+        accounts_json = os.environ.get('ACCOUNTS_JSON')
+        if accounts_json:
+            accounts = json.loads(accounts_json)
+        else:
+            with open("accounts.json", "r") as f:
+                accounts = json.load(f)
+        
+        tokens = []
+        
+        for account in accounts:
+            uid = account.get("uid")
+            password = account.get("password")
+            account_id = account.get("account_id", 1)
+            name = account.get("name", "Guest")
+            region = account.get("region", "IND").upper()
             
-            current_time = int(time.time())
-            payload = {
-                "uid": int(uid),
-                "account_id": int(account_id),
-                "name": name,
-                "region": region,
-                "iat": current_time,
-                "exp": current_time + (24 * 60 * 60),
-                "iss": "freefire",
-                "aud": "freefire-client"
-            }
+            if region != server_name:
+                continue
             
-            header_encoded = base64.urlsafe_b64encode(
-                json.dumps(header).encode()
-            ).decode().rstrip('=')
+            if not uid or not password:
+                continue
             
-            payload_encoded = base64.urlsafe_b64encode(
-                json.dumps(payload).encode()
-            ).decode().rstrip('=')
-            
-            message = f"{header_encoded}.{payload_encoded}"
-            signature = hmac.new(
-                password.encode() if isinstance(password, str) else password,
-                message.encode(),
-                hashlib.sha256
-            ).digest()
-            
-            signature_encoded = base64.urlsafe_b64encode(signature).decode().rstrip('=')
-            
-            jwt_token = f"{header_encoded}.{payload_encoded}.{signature_encoded}"
-            return jwt_token
-            
-        except Exception as e:
-            print(f"JWT generation error: {e}")
-            return None
-    
-    def refresh_tokens(self, server_name):
-        """Refresh tokens for a server"""
-        try:
-            # Load accounts from environment variable or file
-            accounts_json = os.environ.get('ACCOUNTS_JSON')
-            if accounts_json:
-                accounts = json.loads(accounts_json)
-            else:
-                with open("accounts.json", "r") as f:
-                    accounts = json.load(f)
-            
-            tokens = []
-            
-            for account in accounts:
-                uid = account.get("uid")
-                password = account.get("password")
-                account_id = account.get("account_id", 1)
-                name = account.get("name", "Guest")
-                region = account.get("region", "IND").upper()
-                
-                if region != server_name:
-                    continue
-                
-                if not uid or not password:
-                    continue
-                
-                token = self.generate_jwt_token(uid, password, account_id, name, region)
-                if token:
-                    tokens.append({"token": token})
-                    print(f"✅ Generated token for {name}")
-            
-            if tokens:
-                self.store_tokens(server_name, tokens)
+            token = generate_jwt_token(uid, password, account_id, name, region)
+            if token:
+                tokens.append({"token": token})
+                print(f"✅ Generated token for {name}")
+        
+        if tokens:
+            success = store_tokens(server_name, tokens)
+            if success:
                 print(f"🔄 Stored {len(tokens)} tokens for {server_name} in MongoDB")
                 return tokens
-            else:
-                print(f"❌ No tokens generated for {server_name}")
-                return None
-                
-        except Exception as e:
-            print(f"Token refresh error: {e}")
-            return None
+        return None
+    except Exception as e:
+        print(f"Token refresh error: {e}")
+        return None
 
-# Initialize MongoDB manager
-mongo_manager = MongoDBTokenManager()
+def load_tokens(server_name):
+    """Load tokens from MongoDB with auto-refresh"""
+    try:
+        # Check if tokens need refresh
+        if should_refresh_tokens(server_name):
+            print(f"🔄 Refreshing tokens for {server_name}...")
+            tokens = refresh_tokens(server_name)
+            if tokens:
+                return tokens
+            else:
+                print(f"⚠️ Token refresh failed for {server_name}")
+        
+        # Get tokens from MongoDB
+        tokens = get_tokens(server_name)
+        if tokens:
+            return tokens
+        else:
+            print(f"❌ No tokens found for {server_name} in MongoDB")
+            return [{"token": "default_token"}]
+            
+    except Exception as e:
+        print(f"Token loading error: {e}")
+        return [{"token": "default_token"}]
 
 # ==================== MAIN FUNCTIONALITY ====================
 
@@ -296,35 +290,6 @@ def get_headers(token):
         'X-GA': "v1 1",
         'ReleaseVersion': "OB50"
     }
-
-def load_tokens(server_name):
-    """Load tokens from MongoDB with auto-refresh"""
-    try:
-        # Ensure we have a connection first
-        if not mongo_manager.ensure_connection():
-            print("❌ Could not establish MongoDB connection")
-            return [{"token": "default_token"}]
-        
-        # Rest of your existing code...
-        if mongo_manager.should_refresh_tokens(server_name):
-            print(f"🔄 Refreshing tokens for {server_name}...")
-            tokens = mongo_manager.refresh_tokens(server_name)
-            if tokens:
-                return tokens
-            else:
-                print(f"⚠️ Token refresh failed for {server_name}")
-        
-        # Get tokens from MongoDB
-        tokens = mongo_manager.get_tokens(server_name)
-        if tokens:
-            return tokens
-        else:
-            print(f"❌ No tokens found for {server_name} in MongoDB")
-            return [{"token": "default_token"}]
-            
-    except Exception as e:
-        print(f"Token loading error: {e}")
-        return [{"token": "default_token"}]
 
 def encrypt_message(plaintext):
     try:
@@ -438,22 +403,14 @@ def decode_protobuf(binary):
 
 @app.route('/test-connection')
 def test_connection():
-    """Test MongoDB connection with detailed info"""
+    """Test MongoDB connection"""
     try:
-        # Reconnect if needed
-        if not mongo_manager.client:
-            mongo_manager.connect()
-        
-        if mongo_manager.client and mongo_manager.db:
-            # Test with a simple command
-            mongo_manager.client.admin.command('ping')
-            
-            # Try to list collections to verify database access
-            collections = mongo_manager.db.list_collection_names()
-            
+        client, db = get_mongodb_connection()
+        if client and db:
+            collections = db.list_collection_names()
             return jsonify({
                 "status": "connected",
-                "database": mongo_manager.db.name,
+                "database": db.name,
                 "collections": collections,
                 "collections_count": len(collections),
                 "message": "MongoDB connection successful"
@@ -461,157 +418,34 @@ def test_connection():
         else:
             return jsonify({
                 "status": "failed",
-                "error": "MongoDB client or database not initialized",
-                "check": "Check MongoDB connection in MongoDBTokenManager"
+                "error": "Could not establish MongoDB connection"
             })
-            
     except Exception as e:
         return jsonify({
             "status": "error",
-            "error": str(e),
-            "message": "MongoDB connection failed"
+            "error": str(e)
         })
-        
 
 @app.route('/view-mongodb-tokens')
 def view_mongodb_tokens():
     """View actual tokens stored in MongoDB"""
     try:
-        tokens_data = mongo_manager.db.tokens.find_one({"server": "IND"})
-        
+        tokens_data = get_tokens("IND")
         if tokens_data:
-            tokens = tokens_data.get('tokens', [])
             return jsonify({
-                "tokens_in_mongodb": tokens,
-                "total_tokens": len(tokens),
-                "last_updated": time.ctime(tokens_data.get('last_updated', 0)),
-                "expires_at": time.ctime(tokens_data.get('expires_at', 0))
+                "tokens_in_mongodb": tokens_data,
+                "total_tokens": len(tokens_data)
             })
         else:
             return jsonify({"error": "No tokens found in MongoDB for IND server"})
-            
     except Exception as e:
         return jsonify({"error": str(e)})
-
-@app.route('/test-mongodb')
-def test_mongodb():
-    """Test MongoDB connection with error details"""
-    try:
-        # Test connection
-        mongo_manager.db.command('ping')
-        return jsonify({"status": "connected", "message": "MongoDB authentication successful"})
-    except Exception as e:
-        return jsonify({
-            "error": "MongoDB connection failed",
-            "details": str(e),
-            "check": "Verify MONGODB_URI environment variable has correct username/password"
-        })
-
-@app.route('/debug-token-storage')
-def debug_token_storage():
-    """Debug why tokens aren't being stored"""
-    try:
-        # Test token generation
-        tokens = mongo_manager.refresh_tokens("IND")
-        
-        if tokens:
-            # Test storage
-            storage_success = mongo_manager.store_tokens("IND", tokens)
-            
-            # Verify storage
-            stored_tokens = mongo_manager.get_tokens("IND")
-            
-            return jsonify({
-                "tokens_generated": len(tokens),
-                "storage_success": storage_success,
-                "tokens_after_storage": len(stored_tokens) if stored_tokens else 0,
-                "stored_tokens_preview": stored_tokens[:2] if stored_tokens else "None"
-            })
-        else:
-            return jsonify({"error": "No tokens generated"})
-            
-    except Exception as e:
-        return jsonify({"error": str(e), "traceback": traceback.format_exc()})
-
-@app.route('/debug-mongodb-write')
-def debug_mongodb_write():
-    """Debug MongoDB write operations"""
-    try:
-        # Test basic connection
-        mongo_manager.db.command('ping')
-        
-        # Test collection access
-        collection = mongo_manager.db.tokens
-        
-        # Test insert
-        test_data = {
-            "server": "TEST",
-            "tokens": [{"token": "test_token"}],
-            "last_updated": time.time(),
-            "expires_at": time.time() + 3600
-        }
-        
-        insert_result = collection.insert_one(test_data)
-        insert_success = insert_result.acknowledged
-        
-        # Test find
-        found_data = collection.find_one({"server": "TEST"})
-        find_success = bool(found_data)
-        
-        # Test update
-        update_result = collection.update_one(
-            {"server": "TEST"}, 
-            {"$set": {"tokens": [{"token": "updated_token"}]}}
-        )
-        update_success = update_result.acknowledged
-        
-        # Cleanup
-        delete_result = collection.delete_one({"server": "TEST"})
-        
-        return jsonify({
-            "ping_success": True,
-            "insert_success": insert_success,
-            "find_success": find_success,
-            "update_success": update_success,
-            "inserted_id": str(insert_result.inserted_id) if insert_success else "None",
-            "found_data": str(found_data) if found_data else "None",
-            "database": mongo_manager.db.name,
-            "collection": "tokens"
-        })
-        
-    except Exception as e:
-        return jsonify({
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "traceback": traceback.format_exc()
-        })
-
-@app.route('/mongodb-status')
-def mongodb_status():
-    """Check MongoDB connection and token status"""
-    status = {}
-    
-    for server in ["IND", "BR", "BD"]:
-        tokens = mongo_manager.get_tokens(server)
-        needs_refresh = mongo_manager.should_refresh_tokens(server)
-        
-        status[server] = {
-            "connected": mongo_manager.client is not None,
-            "tokens_available": len(tokens) if tokens else 0,
-            "needs_refresh": needs_refresh,
-            "has_tokens": bool(tokens)
-        }
-    
-    return jsonify({
-        "mongodb_status": status,
-        "connection": "active" if mongo_manager.client else "failed"
-    })
 
 @app.route('/refresh-mongodb-tokens/<server_name>')
 def refresh_mongodb_tokens(server_name):
     """Manually refresh tokens in MongoDB"""
     server_name = server_name.upper()
-    tokens = mongo_manager.refresh_tokens(server_name)
+    tokens = refresh_tokens(server_name)
     
     return jsonify({
         "server": server_name,
@@ -619,44 +453,6 @@ def refresh_mongodb_tokens(server_name):
         "tokens_generated": len(tokens) if tokens else 0,
         "message": f"Tokens refreshed in MongoDB for {server_name}" if tokens else f"Failed to refresh tokens for {server_name}"
     })
-
-# ======================================================================================================================================================================================
-
-
-
-@app.route('/test-manager')
-def test_manager():
-    """Test if MongoDBTokenManager is working"""
-    try:
-        # Test if manager connected
-        if mongo_manager.client:
-            mongo_manager.client.admin.command('ping')
-            return jsonify({
-                "manager_status": "connected",
-                "database": mongo_manager.db.name if mongo_manager.db else "None",
-                "client_initialized": mongo_manager.client is not None,
-                "db_initialized": mongo_manager.db is not None
-            })
-        else:
-            # Try to reconnect
-            connected = mongo_manager.connect()
-            return jsonify({
-                "manager_status": "reconnected" if connected else "failed",
-                "reconnect_success": connected,
-                "client_initialized": mongo_manager.client is not None,
-                "db_initialized": mongo_manager.db is not None
-            })
-    except Exception as e:
-        return jsonify({
-            "manager_status": "error",
-            "error": str(e)
-        })
-
-
-
-
-
-
 
 @app.route('/debug-env')
 def debug_env():
@@ -668,8 +464,6 @@ def debug_env():
         "MONGODB_URI_preview": mongodb_uri[:20] + "..." if mongodb_uri else "Not found",
         "all_env_vars": list(os.environ.keys())
     })
-
-
 
 @app.route('/debug-mongodb-error')
 def debug_mongodb_error():
@@ -689,24 +483,6 @@ def debug_mongodb_error():
             "error_type": type(e).__name__,
             "connection_string_preview": connection_string[:50] + "..." if connection_string else "None"
         })
-
-
-# ========================================================================================================================================================================================
-
-@app.route('/debug-databases')
-def debug_databases():
-    """See what databases are available"""
-    try:
-        if mongo_manager.client:
-            databases = mongo_manager.client.list_database_names()
-            return jsonify({
-                "available_databases": databases,
-                "current_database": mongo_manager.db.name if mongo_manager.db else "None"
-            })
-        else:
-            return jsonify({"error": "No MongoDB connection"})
-    except Exception as e:
-        return jsonify({"error": str(e)})
 
 @app.route('/')
 def home():
@@ -831,50 +607,6 @@ def handle_requests():
                 "Instagram": "_echo.del.alma_"
             }
         }), 500
-
-@app.route('/debug-request/<uid>/<server_name>')
-def debug_request(uid, server_name):
-    """Debug route to see what's happening with the request"""
-    try:
-        data = load_tokens(server_name.upper())
-        if not data:
-            return jsonify({"error": "No tokens available"})
-            
-        token = data[0]['token']
-        encrypted_uid = enc(uid)
-        
-        if not encrypted_uid:
-            return jsonify({"error": "Encryption failed"})
-        
-        url = get_server_url(server_name.upper(), "info")
-        edata = bytes.fromhex(encrypted_uid)
-        headers = get_headers(token)
-        
-        print(f"🔍 DEBUG: Sending request to {url}")
-        print(f"🔍 DEBUG: Headers: {headers}")
-        print(f"🔍 DEBUG: Encrypted UID length: {len(encrypted_uid)}")
-        
-        response = requests.post(url, data=edata, headers=headers, verify=True, timeout=30)
-        
-        debug_info = {
-            "url": url,
-            "status_code": response.status_code,
-            "response_headers": dict(response.headers),
-            "response_body_preview": response.text[:500] if response.text else "Empty response",
-            "response_hex": response.content.hex()[:100] + "..." if response.content else "No content"
-        }
-        
-        print(f"🔍 DEBUG: Response Status: {response.status_code}")
-        print(f"🔍 DEBUG: Response Headers: {dict(response.headers)}")
-        print(f"🔍 DEBUG: Response Body Preview: {response.text[:200]}")
-        
-        return jsonify(debug_info)
-        
-    except Exception as e:
-        return jsonify({
-            "error": f"Debug request failed: {str(e)}",
-            "traceback": traceback.format_exc()
-        })
 
 # For Vercel
 app = app
