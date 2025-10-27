@@ -602,6 +602,41 @@ def refresh_mongodb_tokens(server_name):
 # ======================================================================================================================================================================================
 
 
+
+@app.route('/test-manager')
+def test_manager():
+    """Test if MongoDBTokenManager is working"""
+    try:
+        # Test if manager connected
+        if mongo_manager.client:
+            mongo_manager.client.admin.command('ping')
+            return jsonify({
+                "manager_status": "connected",
+                "database": mongo_manager.db.name if mongo_manager.db else "None",
+                "client_initialized": mongo_manager.client is not None,
+                "db_initialized": mongo_manager.db is not None
+            })
+        else:
+            # Try to reconnect
+            connected = mongo_manager.connect()
+            return jsonify({
+                "manager_status": "reconnected" if connected else "failed",
+                "reconnect_success": connected,
+                "client_initialized": mongo_manager.client is not None,
+                "db_initialized": mongo_manager.db is not None
+            })
+    except Exception as e:
+        return jsonify({
+            "manager_status": "error",
+            "error": str(e)
+        })
+
+
+
+
+
+
+
 @app.route('/debug-env')
 def debug_env():
     """Check if environment variables are loaded"""
