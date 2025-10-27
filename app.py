@@ -83,7 +83,8 @@ class MongoDBTokenManager:
     def __init__(self):
         self.client = None
         self.db = None
-        self.connect()
+        # Don't auto-connect in __init__, connect when needed
+        print("📦 MongoDBTokenManager initialized (lazy connection)")
     
     def connect(self):
         """Connect to MongoDB Atlas"""
@@ -98,9 +99,11 @@ class MongoDBTokenManager:
             # Add timeout and better error handling
             self.client = MongoClient(
                 connection_string, 
-                serverSelectionTimeoutMS=5000,
-                connectTimeoutMS=5000,
-                socketTimeoutMS=5000
+                serverSelectionTimeoutMS=10000,  # Increased timeout
+                connectTimeoutMS=10000,
+                socketTimeoutMS=10000,
+                retryWrites=True,
+                maxPoolSize=10
             )
             
             # Test the connection with a simple command
@@ -116,6 +119,19 @@ class MongoDBTokenManager:
             self.client = None
             self.db = None
             return False
+    
+    def ensure_connection(self):
+        """Ensure we have a valid connection"""
+        try:
+            if not self.client:
+                return self.connect()
+            
+            # Test existing connection
+            self.client.admin.command('ping')
+            return True
+        except:
+            # Reconnect if ping fails
+            return self.connect()
     
     def store_tokens(self, server_name, tokens):
         """Store tokens for a server"""
@@ -284,7 +300,12 @@ def get_headers(token):
 def load_tokens(server_name):
     """Load tokens from MongoDB with auto-refresh"""
     try:
-        # Check if tokens need refresh
+        # Ensure we have a connection first
+        if not mongo_manager.ensure_connection():
+            print("❌ Could not establish MongoDB connection")
+            return [{"token": "default_token"}]
+        
+        # Rest of your existing code...
         if mongo_manager.should_refresh_tokens(server_name):
             print(f"🔄 Refreshing tokens for {server_name}...")
             tokens = mongo_manager.refresh_tokens(server_name)
