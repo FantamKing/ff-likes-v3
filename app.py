@@ -592,7 +592,7 @@ def refresh_mongodb_tokens(server_name):
         "message": f"Tokens refreshed in MongoDB for {server_name}" if tokens else f"Failed to refresh tokens for {server_name}"
     })
 
-
+# ======================================================================================================================================================================================
 
 
 @app.route('/debug-env')
@@ -608,8 +608,27 @@ def debug_env():
 
 
 
+@app.route('/debug-mongodb-error')
+def debug_mongodb_error():
+    """Get detailed MongoDB connection error"""
+    try:
+        connection_string = os.environ.get('MONGODB_URI')
+        
+        # Test connection with detailed error
+        client = MongoClient(connection_string, serverSelectionTimeoutMS=5000)
+        client.admin.command('ping')
+        
+        return jsonify({"status": "connected", "message": "MongoDB working!"})
+        
+    except Exception as e:
+        return jsonify({
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "connection_string_preview": connection_string[:50] + "..." if connection_string else "None"
+        })
 
 
+# ========================================================================================================================================================================================
 
 @app.route('/debug-databases')
 def debug_databases():
