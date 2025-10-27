@@ -1,4 +1,4 @@
-# Credit:- "insta :-_echo.del.alma_"
+app.py                                                                                                                                   # Credit:- "insta :-_echo.del.alma_"
 # Developed by God
 
 from pymongo import MongoClient
@@ -107,12 +107,9 @@ class MongoDBTokenManager:
             # Test the connection with a simple command
             self.client.admin.command('ping')
             
-            # Get the database from connection string
-            parsed_uri = urlparse(connection_string)
-            db_name = parsed_uri.path[1:] if parsed_uri.path else 'ff_likes_db'  # Remove leading slash
-            
-            self.db = self.client[db_name]
-            print(f"✅ Connected to MongoDB Atlas - Database: {db_name}")
+            # Use the default database from connection string
+            self.db = self.client.get_database()
+            print(f"✅ Connected to MongoDB Atlas - Database: {self.db.name}")
             return True
             
         except Exception as e:
@@ -595,6 +592,21 @@ def refresh_mongodb_tokens(server_name):
         "tokens_generated": len(tokens) if tokens else 0,
         "message": f"Tokens refreshed in MongoDB for {server_name}" if tokens else f"Failed to refresh tokens for {server_name}"
     })
+
+@app.route('/debug-databases')
+def debug_databases():
+    """See what databases are available"""
+    try:
+        if mongo_manager.client:
+            databases = mongo_manager.client.list_database_names()
+            return jsonify({
+                "available_databases": databases,
+                "current_database": mongo_manager.db.name if mongo_manager.db else "None"
+            })
+        else:
+            return jsonify({"error": "No MongoDB connection"})
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 @app.route('/')
 def home():
