@@ -466,6 +466,75 @@ def debug_env():
         "all_env_vars": list(os.environ.keys())
     })
 
+
+
+
+@app.route('/debug-mongodb-detailed')
+def debug_mongodb_detailed():
+    """Detailed MongoDB connection debug"""
+    try:
+        connection_string = os.environ.get('MONGODB_URI')
+        
+        if not connection_string:
+            return jsonify({"error": "MONGODB_URI environment variable is empty"})
+        
+        # Show connection string info (masked)
+        if '@' in connection_string:
+            user_part, rest = connection_string.split('@', 1)
+            if ':' in user_part:
+                username, password = user_part.split(':', 1)
+                masked_connection = f"{username}:{'*' * len(password)}@{rest}"
+            else:
+                masked_connection = connection_string
+        else:
+            masked_connection = connection_string
+        
+        # Test connection with detailed options
+        client = MongoClient(
+            connection_string, 
+            serverSelectionTimeoutMS=10000,
+            connectTimeoutMS=10000,
+            socketTimeoutMS=10000,
+            retryWrites=True
+        )
+        
+        # Test the connection
+        client.admin.command('ping')
+        
+        # Get database info
+        db = client.get_database()
+        collections = db.list_collection_names()
+        
+        client.close()
+        
+        return jsonify({
+            "status": "connected",
+            "database": db.name,
+            "collections": collections,
+            "connection_string_masked": masked_connection,
+            "connection_string_length": len(connection_string)
+        })
+        
+    except Exception as e:
+        error_details = {
+            "error": str(e),
+            "error_type": type(e).__name__,
+            "connection_string_exists": bool(connection_string),
+            "connection_string_length": len(connection_string) if connection_string else 0
+        }
+        
+        # Add specific error handling
+        if "authentication failed" in str(e).lower():
+            error_details["suggestion"] = "Check MongoDB username and password in connection string"
+        elif "connection refused" in str(e).lower():
+            error_details["suggestion"] = "Check MongoDB IP whitelist and cluster status"
+        elif "timed out" in str(e).lower():
+            error_details["suggestion"] = "Network issue - check MongoDB cluster is running"
+            
+        return jsonify(error_details)
+
+
+
 @app.route('/debug-mongodb-error')
 def debug_mongodb_error():
     """Get detailed MongoDB connection error"""
