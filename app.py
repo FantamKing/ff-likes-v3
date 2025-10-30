@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Credit:- "insta :-_echo.del.alma_"
-# Developed by God
+# Developed  by God
 
 import sys
 import traceback
@@ -292,6 +292,7 @@ def decode_protobuf(binary):
 
 # ==================== FLASK ROUTES ====================
 
+
 @app.route('/')
 def home():
     return jsonify({
@@ -453,6 +454,166 @@ def handle_requests():
                 "Instagram": "📱 _echo.del.alma_"
             }
         }), 500
+
+
+
+
+
+
+
+
+# ==================== TOKEN REFRESH ROUTES ====================
+
+@app.route('/refresh-tokens', methods=['GET', 'POST'])
+def refresh_tokens():
+    """Manual endpoint to refresh all tokens - Works with GET and POST"""
+    try:
+        # Import here to avoid circular imports
+        from token_refresher import FreeFireTokenRefresher
+        
+        refresher = FreeFireTokenRefresher()
+        
+        async def refresh():
+            return await refresher.convert_accounts_to_tokens()
+        
+        # Run the conversion
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        success = loop.run_until_complete(refresh())
+        
+        # Get stats
+        stats = refresher.get_token_stats()
+        
+        return jsonify({
+            'status': 'success' if success else 'partial_success',
+            'message': 'Tokens refreshed successfully',
+            'token_statistics': stats,
+            'timestamp': datetime.utcnow().isoformat(),
+            "credits": {
+                "Developer": "👑 God",
+                "Instagram": "📱 _echo.del.alma_"
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Token refresh failed: {str(e)}',
+            "credits": {
+                "Developer": "👑 God",
+                "Instagram": "📱 _echo.del.alma_"
+            }
+        }), 500
+
+@app.route('/token-stats', methods=['GET'])
+def token_stats():
+    """Check current token statistics"""
+    try:
+        from token_refresher import FreeFireTokenRefresher
+        refresher = FreeFireTokenRefresher()
+        stats = refresher.get_token_stats()
+        
+        return jsonify({
+            'status': 'success',
+            'token_statistics': stats,
+            'timestamp': datetime.utcnow().isoformat(),
+            "credits": {
+                "Developer": "👑 God",
+                "Instagram": "📱 _echo.del.alma_"
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            "credits": {
+                "Developer": "👑 God",
+                "Instagram": "📱 _echo.del.alma_"
+            }
+        }), 500
+
+@app.route('/force-refresh', methods=['GET'])
+def force_refresh():
+    """Simple GET endpoint to force token refresh"""
+    try:
+        from token_refresher import FreeFireTokenRefresher
+        
+        refresher = FreeFireTokenRefresher()
+        
+        async def refresh():
+            return await refresher.convert_accounts_to_tokens()
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        success = loop.run_until_complete(refresh())
+        
+        if success:
+            return jsonify({
+                "status": "success",
+                "message": "Tokens refreshed successfully!",
+                "next_steps": {
+                    "check_stats": "Visit /token-stats to see updated tokens",
+                    "test_likes": "Use /like endpoint to test with new tokens"
+                },
+                "credits": {
+                    "Developer": "👑 God",
+                    "Instagram": "📱 _echo.del.alma_"
+                }
+            })
+        else:
+            return jsonify({
+                "status": "error", 
+                "message": "Token refresh failed - check server logs",
+                "credits": {
+                    "Developer": "👑 God",
+                    "Instagram": "📱 _echo.del.alma_"
+                }
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": f"Refresh failed: {str(e)}",
+            "credits": {
+                "Developer": "👑 God",
+                "Instagram": "📱 _echo.del.alma_"
+            }
+        }), 500
+
+# ==================== AUTO REFRESH FUNCTION ====================
+
+def auto_refresh_tokens():
+    """Function to be called by cron job"""
+    try:
+        from token_refresher import FreeFireTokenRefresher
+        
+        refresher = FreeFireTokenRefresher()
+        
+        async def refresh():
+            return await refresher.convert_accounts_to_tokens()
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        success = loop.run_until_complete(refresh())
+        
+        if success:
+            print("✅ Auto token refresh completed successfully")
+        else:
+            print("❌ Auto token refresh completed with errors")
+            
+        return success
+    except Exception as e:
+        print(f"💥 Auto token refresh failed: {e}")
+        return False
+
+# Auto-refresh on startup (optional)
+print("🔄 Token refresh system ready...")
+# Uncomment the line below if you want auto-refresh on startup
+# auto_refresh_tokens()
+
+
+
+
+
 
 @app.route('/debug-request/<uid>/<server_name>')
 def debug_request(uid, server_name):
