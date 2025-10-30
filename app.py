@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Credit:- "insta :-_echo.del.alma_"
-# Developed by God
+# Developed  by God
 
 import sys
 import traceback
