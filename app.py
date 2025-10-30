@@ -459,16 +459,22 @@ def handle_requests():
 
 
 
+
+
+
 # ==================== TOKEN REFRESH ROUTES ====================
 
-@app.route('/refresh-tokens', methods=['POST'])
+@app.route('/refresh-tokens', methods=['GET', 'POST'])
 def refresh_tokens():
-    """Manual endpoint to refresh all tokens"""
+    """Manual endpoint to refresh all tokens - Works with GET and POST"""
     try:
-        from token_refresher import token_refresher
+        # Import here to avoid circular imports
+        from token_refresher import FreeFireTokenRefresher
+        
+        refresher = FreeFireTokenRefresher()
         
         async def refresh():
-            return await token_refresher.convert_accounts_to_tokens()
+            return await refresher.convert_accounts_to_tokens()
         
         # Run the conversion
         loop = asyncio.new_event_loop()
@@ -476,12 +482,12 @@ def refresh_tokens():
         success = loop.run_until_complete(refresh())
         
         # Get stats
-        stats = token_refresher.get_token_stats()
+        stats = refresher.get_token_stats()
         
         return jsonify({
             'status': 'success' if success else 'partial_success',
             'message': 'Tokens refreshed successfully',
-            'token_stats': stats,
+            'token_statistics': stats,
             'timestamp': datetime.utcnow().isoformat(),
             "credits": {
                 "Developer": "👑 God",
@@ -503,8 +509,9 @@ def refresh_tokens():
 def token_stats():
     """Check current token statistics"""
     try:
-        from token_refresher import token_refresher
-        stats = token_refresher.get_token_stats()
+        from token_refresher import FreeFireTokenRefresher
+        refresher = FreeFireTokenRefresher()
+        stats = refresher.get_token_stats()
         
         return jsonify({
             'status': 'success',
@@ -524,15 +531,65 @@ def token_stats():
             }
         }), 500
 
+@app.route('/force-refresh', methods=['GET'])
+def force_refresh():
+    """Simple GET endpoint to force token refresh"""
+    try:
+        from token_refresher import FreeFireTokenRefresher
+        
+        refresher = FreeFireTokenRefresher()
+        
+        async def refresh():
+            return await refresher.convert_accounts_to_tokens()
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        success = loop.run_until_complete(refresh())
+        
+        if success:
+            return jsonify({
+                "status": "success",
+                "message": "Tokens refreshed successfully!",
+                "next_steps": {
+                    "check_stats": "Visit /token-stats to see updated tokens",
+                    "test_likes": "Use /like endpoint to test with new tokens"
+                },
+                "credits": {
+                    "Developer": "👑 God",
+                    "Instagram": "📱 _echo.del.alma_"
+                }
+            })
+        else:
+            return jsonify({
+                "status": "error", 
+                "message": "Token refresh failed - check server logs",
+                "credits": {
+                    "Developer": "👑 God",
+                    "Instagram": "📱 _echo.del.alma_"
+                }
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": f"Refresh failed: {str(e)}",
+            "credits": {
+                "Developer": "👑 God",
+                "Instagram": "📱 _echo.del.alma_"
+            }
+        }), 500
+
 # ==================== AUTO REFRESH FUNCTION ====================
 
 def auto_refresh_tokens():
     """Function to be called by cron job"""
     try:
-        from token_refresher import token_refresher
+        from token_refresher import FreeFireTokenRefresher
+        
+        refresher = FreeFireTokenRefresher()
         
         async def refresh():
-            return await token_refresher.convert_accounts_to_tokens()
+            return await refresher.convert_accounts_to_tokens()
         
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -549,9 +606,10 @@ def auto_refresh_tokens():
         return False
 
 # Auto-refresh on startup (optional)
-print("🔄 Checking tokens on startup...")
+print("🔄 Token refresh system ready...")
 # Uncomment the line below if you want auto-refresh on startup
 # auto_refresh_tokens()
+
 
 
 
