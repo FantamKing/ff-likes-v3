@@ -1,12 +1,12 @@
 from wsgi import app
 
-#this code was made by cutehack
-#this code was made by cutehack
-#this code was made by cutehack
-#this code was made by cutehack
-#this code was made by cutehack
-#this code was made by cutehack
-#this code was made by cutehack
-#this code was made by cutehack
-#this code was made by cutehack
-#this code was made by cutehack
+#dev by God ( insta :- _Echo.del.alma_ )
+#dev by God ( insta :- _Echo.del.alma_ )
+#dev by God ( insta :- _Echo.del.alma_ )
+#dev by God ( insta :- _Echo.del.alma_ )
+#dev by God ( insta :- _Echo.del.alma_ )
+#dev by God ( insta :- _Echo.del.alma_ )
+#dev by God ( insta :- _Echo.del.alma_ )
+#dev by God ( insta :- _Echo.del.alma_ )
+#dev by God ( insta :- _Echo.del.alma_ )
+#dev by God ( insta :- _Echo.del.alma_ )
