@@ -1,14 +1,9 @@
+# -*- coding: utf-8 -*-
 # Credit:- "insta :-_echo.del.alma_"
 # Developed by God
 
-from pymongo import MongoClient
-import os
 import sys
 import traceback
-import time
-import hashlib
-import hmac
-import base64
 
 print("🚀 STARTING IMPORTS - PHASE 1")
 
@@ -55,6 +50,9 @@ try:
     import aiohttp
     import requests
     import json
+    import os
+    import time
+    from datetime import datetime, timedelta
     print("✅ Utilities imported successfully")
 except Exception as e:
     print(f"💥 UTILITIES IMPORT FAILED: {e}")
@@ -72,209 +70,87 @@ except Exception as e:
     traceback.print_exc()
     sys.exit(1)
 
-print("🎉 ALL IMPORTS SUCCESSFUL - Starting Flask app...")
+print("🎉 ALL IMPORTS SUCCESSFUL - Starting God's Plan...")
 
 app = Flask(__name__)
 
-# ==================== SIMPLE MONGODB TOKEN MANAGER ====================
+# ==================== DAILY TRACKER CLASS ====================
 
-def get_mongodb_connection():
-    """Get MongoDB connection - simple and reliable"""
-    try:
-        connection_string = os.environ.get('MONGODB_URI')
-        if not connection_string:
-            print("❌ MONGODB_URI not found")
-            return None, None
+class DailyLikeTracker:
+    def __init__(self, filename="daily_likes.json"):
+        self.filename = filename
+        self.data = self.load_data()
+    
+    def load_data(self):
+        try:
+            with open(self.filename, "r") as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return {}
+    
+    def save_data(self):
+        try:
+            with open(self.filename, "w") as f:
+                json.dump(self.data, f, indent=2)
+        except Exception as e:
+            print(f"Save error: {e}")
+    
+    def get_reset_time(self):
+        """Get next reset time (4:00 AM IST)"""
+        now = datetime.utcnow() + timedelta(hours=5, minutes=30)  # UTC to IST
+        today_4am = now.replace(hour=4, minute=0, second=0, microsecond=0)
         
-        client = MongoClient(
-            connection_string, 
-            serverSelectionTimeoutMS=10000,
-            connectTimeoutMS=10000,
-            socketTimeoutMS=10000
-        )
-        
-        # Test connection
-        client.admin.command('ping')
-        db = client.get_database()
-        
-        print(f"✅ MongoDB connected - Database: {db.name}")
-        return client, db
-        
-    except Exception as e:
-        print(f"❌ MongoDB connection failed: {e}")
-        return None, None
-
-def store_tokens(server_name, tokens):
-    """Store tokens in MongoDB"""
-    try:
-        client, db = get_mongodb_connection()
-        if not db:
-            return False
-            
-        result = db.tokens.update_one(
-            {"server": server_name},
-            {
-                "$set": {
-                    "tokens": tokens,
-                    "last_updated": time.time(),
-                    "expires_at": time.time() + (4 * 3600)
-                }
-            },
-            upsert=True
-        )
-        
-        client.close()
-        return result.acknowledged
-    except Exception as e:
-        print(f"Token storage error: {e}")
-        return False
-
-def get_tokens(server_name):
-    """Get tokens from MongoDB"""
-    try:
-        client, db = get_mongodb_connection()
-        if not db:
-            return None
-            
-        data = db.tokens.find_one({"server": server_name})
-        client.close()
-        
-        if data and data.get('tokens'):
-            # Check if tokens are expired
-            if time.time() > data.get('expires_at', 0):
-                print(f"🔄 Tokens for {server_name} expired, need refresh")
-                return None
-            return data['tokens']
-        return None
-    except Exception as e:
-        print(f"Token retrieval error: {e}")
-        return None
-
-def should_refresh_tokens(server_name):
-    """Check if tokens need refresh"""
-    try:
-        client, db = get_mongodb_connection()
-        if not db:
-            return True
-            
-        data = db.tokens.find_one({"server": server_name})
-        client.close()
-        
-        if not data:
-            return True
-        return time.time() > data.get('expires_at', 0)
-    except Exception as e:
-        print(f"Token check error: {e}")
-        return True
-
-def generate_jwt_token(uid, password, account_id, name, region):
-    """Generate JWT token"""
-    try:
-        header = {
-            "alg": "HS256",
-            "typ": "JWT"
-        }
-        
-        current_time = int(time.time())
-        payload = {
-            "uid": int(uid),
-            "account_id": int(account_id),
-            "name": name,
-            "region": region,
-            "iat": current_time,
-            "exp": current_time + (24 * 60 * 60),
-            "iss": "freefire",
-            "aud": "freefire-client"
-        }
-        
-        header_encoded = base64.urlsafe_b64encode(
-            json.dumps(header).encode()
-        ).decode().rstrip('=')
-        
-        payload_encoded = base64.urlsafe_b64encode(
-            json.dumps(payload).encode()
-        ).decode().rstrip('=')
-        
-        message = f"{header_encoded}.{payload_encoded}"
-        signature = hmac.new(
-            password.encode() if isinstance(password, str) else password,
-            message.encode(),
-            hashlib.sha256
-        ).digest()
-        
-        signature_encoded = base64.urlsafe_b64encode(signature).decode().rstrip('=')
-        
-        jwt_token = f"{header_encoded}.{payload_encoded}.{signature_encoded}"
-        return jwt_token
-        
-    except Exception as e:
-        print(f"JWT generation error: {e}")
-        return None
-
-def refresh_tokens(server_name):
-    """Refresh tokens for a server"""
-    try:
-        # Load accounts from environment variable or file
-        accounts_json = os.environ.get('ACCOUNTS_JSON')
-        if accounts_json:
-            accounts = json.loads(accounts_json)
+        if now >= today_4am:
+            next_reset = today_4am + timedelta(days=1)
         else:
-            with open("accounts.json", "r") as f:
-                accounts = json.load(f)
+            next_reset = today_4am
         
-        tokens = []
+        return next_reset.strftime("%H:%M %p IST"), next_reset
+    
+    def can_send_likes(self, uid, requested_likes):
+        """Check if we can send requested likes to this UID today"""
+        uid = str(uid)
+        current_time = time.time()
+        reset_time_str, next_reset = self.get_reset_time()
         
-        for account in accounts:
-            uid = account.get("uid")
-            password = account.get("password")
-            account_id = account.get("account_id", 1)
-            name = account.get("name", "Guest")
-            region = account.get("region", "IND").upper()
-            
-            if region != server_name:
-                continue
-            
-            if not uid or not password:
-                continue
-            
-            token = generate_jwt_token(uid, password, account_id, name, region)
-            if token:
-                tokens.append({"token": token})
-                print(f"✅ Generated token for {name}")
+        # Clean old data (older than 24 hours)
+        self.clean_old_data()
         
-        if tokens:
-            success = store_tokens(server_name, tokens)
-            if success:
-                print(f"🔄 Stored {len(tokens)} tokens for {server_name} in MongoDB")
-                return tokens
-        return None
-    except Exception as e:
-        print(f"Token refresh error: {e}")
-        return None
+        if uid not in self.data:
+            self.data[uid] = {"likes_sent": 0, "last_updated": current_time}
+            self.save_data()
+        
+        used_today = self.data[uid]["likes_sent"]
+        remaining = max(0, 100 - used_today)
+        
+        can_send = min(requested_likes, remaining)
+        return can_send, used_today, remaining, reset_time_str
+    
+    def update_likes_sent(self, uid, likes_sent):
+        """Update the like count for a UID"""
+        uid = str(uid)
+        if uid in self.data:
+            self.data[uid]["likes_sent"] += likes_sent
+            self.data[uid]["last_updated"] = time.time()
+            self.save_data()
+    
+    def clean_old_data(self):
+        """Remove data older than 24 hours"""
+        current_time = time.time()
+        uids_to_remove = []
+        
+        for uid, info in self.data.items():
+            if current_time - info["last_updated"] > 24 * 3600:  # 24 hours
+                uids_to_remove.append(uid)
+        
+        for uid in uids_to_remove:
+            del self.data[uid]
+        
+        if uids_to_remove:
+            self.save_data()
 
-def load_tokens(server_name):
-    """Load tokens from MongoDB with auto-refresh"""
-    try:
-        # Check if tokens need refresh
-        if should_refresh_tokens(server_name):
-            print(f"🔄 Refreshing tokens for {server_name}...")
-            tokens = refresh_tokens(server_name)
-            if tokens:
-                return tokens
-            else:
-                print(f"⚠️ Token refresh failed for {server_name}")
-        
-        # Get tokens from MongoDB
-        tokens = get_tokens(server_name)
-        if tokens:
-            return tokens
-        else:
-            print(f"❌ No tokens found for {server_name} in MongoDB")
-            return [{"token": "default_token"}]
-            
-    except Exception as e:
-        print(f"Token loading error: {e}")
-        return [{"token": "default_token"}]
+# Initialize tracker
+tracker = DailyLikeTracker()
 
 # ==================== MAIN FUNCTIONALITY ====================
 
@@ -290,6 +166,21 @@ def get_headers(token):
         'X-GA': "v1 1",
         'ReleaseVersion': "OB50"
     }
+
+def load_tokens(server_name):
+    try:
+        if server_name == "IND":
+            with open("token_ind.json", "r") as f:
+                return json.load(f)
+        elif server_name in {"BR", "US", "SAC", "NA"}:
+            with open("token_br.json", "r") as f:
+                return json.load(f)
+        else:
+            with open("token_bd.json", "r") as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"Token loading error: {e}")
+        return [{"token": "default_token"}]
 
 def encrypt_message(plaintext):
     try:
@@ -401,175 +292,21 @@ def decode_protobuf(binary):
 
 # ==================== FLASK ROUTES ====================
 
-@app.route('/test-connection')
-def test_connection():
-    """Test MongoDB connection"""
-    try:
-        client, db = get_mongodb_connection()
-        if client and db:
-            collections = db.list_collection_names()
-            client.close()  # Close the connection
-            return jsonify({
-                "status": "connected",
-                "database": db.name,
-                "collections": collections,
-                "collections_count": len(collections),
-                "message": "MongoDB connection successful"
-            })
-        else:
-            return jsonify({
-                "status": "failed",
-                "error": "Could not establish MongoDB connection"
-            })
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "error": str(e)
-        })
-
-@app.route('/view-mongodb-tokens')
-def view_mongodb_tokens():
-    """View actual tokens stored in MongoDB"""
-    try:
-        tokens_data = get_tokens("IND")
-        if tokens_data:
-            return jsonify({
-                "tokens_in_mongodb": tokens_data,
-                "total_tokens": len(tokens_data)
-            })
-        else:
-            return jsonify({"error": "No tokens found in MongoDB for IND server"})
-    except Exception as e:
-        return jsonify({"error": str(e)})
-
-@app.route('/refresh-mongodb-tokens/<server_name>')
-def refresh_mongodb_tokens(server_name):
-    """Manually refresh tokens in MongoDB"""
-    server_name = server_name.upper()
-    tokens = refresh_tokens(server_name)
-    
-    return jsonify({
-        "server": server_name,
-        "status": "success" if tokens else "failed",
-        "tokens_generated": len(tokens) if tokens else 0,
-        "message": f"Tokens refreshed in MongoDB for {server_name}" if tokens else f"Failed to refresh tokens for {server_name}"
-    })
-
-@app.route('/debug-env')
-def debug_env():
-    """Check if environment variables are loaded"""
-    mongodb_uri = os.environ.get('MONGODB_URI')
-    
-    return jsonify({
-        "MONGODB_URI_exists": bool(mongodb_uri),
-        "MONGODB_URI_preview": mongodb_uri[:20] + "..." if mongodb_uri else "Not found",
-        "all_env_vars": list(os.environ.keys())
-    })
-
-
-
-
-@app.route('/debug-mongodb-detailed')
-def debug_mongodb_detailed():
-    """Detailed MongoDB connection debug"""
-    try:
-        connection_string = os.environ.get('MONGODB_URI')
-        
-        if not connection_string:
-            return jsonify({"error": "MONGODB_URI environment variable is empty"})
-        
-        # Show connection string info (masked)
-        if '@' in connection_string:
-            user_part, rest = connection_string.split('@', 1)
-            if ':' in user_part:
-                username, password = user_part.split(':', 1)
-                masked_connection = f"{username}:{'*' * len(password)}@{rest}"
-            else:
-                masked_connection = connection_string
-        else:
-            masked_connection = connection_string
-        
-        # Test connection with detailed options
-        client = MongoClient(
-            connection_string, 
-            serverSelectionTimeoutMS=10000,
-            connectTimeoutMS=10000,
-            socketTimeoutMS=10000,
-            retryWrites=True
-        )
-        
-        # Test the connection
-        client.admin.command('ping')
-        
-        # Get database info
-        db = client.get_database()
-        collections = db.list_collection_names()
-        
-        client.close()
-        
-        return jsonify({
-            "status": "connected",
-            "database": db.name,
-            "collections": collections,
-            "connection_string_masked": masked_connection,
-            "connection_string_length": len(connection_string)
-        })
-        
-    except Exception as e:
-        error_details = {
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "connection_string_exists": bool(connection_string),
-            "connection_string_length": len(connection_string) if connection_string else 0
-        }
-        
-        # Add specific error handling
-        if "authentication failed" in str(e).lower():
-            error_details["suggestion"] = "Check MongoDB username and password in connection string"
-        elif "connection refused" in str(e).lower():
-            error_details["suggestion"] = "Check MongoDB IP whitelist and cluster status"
-        elif "timed out" in str(e).lower():
-            error_details["suggestion"] = "Network issue - check MongoDB cluster is running"
-            
-        return jsonify(error_details)
-
-
-
-@app.route('/debug-mongodb-error')
-def debug_mongodb_error():
-    """Get detailed MongoDB connection error"""
-    try:
-        connection_string = os.environ.get('MONGODB_URI')
-        
-        # Test connection with detailed error
-        client = MongoClient(connection_string, serverSelectionTimeoutMS=5000)
-        client.admin.command('ping')
-        
-        return jsonify({"status": "connected", "message": "MongoDB working!"})
-        
-    except Exception as e:
-        return jsonify({
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "connection_string_preview": connection_string[:50] + "..." if connection_string else "None"
-        })
-
 @app.route('/')
 def home():
     return jsonify({
-        "message": "God is Opening his gate!",
-        "status": "opening...",
-        "Yoo! just add & edit this after the page's url": "/like?uid=UID&server_name=SERVER&like_count=how much like want",
+        "message": "God's Plan is Active! 🙏",
+        "status": "Divine Intervention Ready",
+        "usage": "/like?uid=USER_ID&server_name=SERVER&like_count=COUNT",
         "credits": {
-            "Developer": "God",
-            "Instagram": "_echo.del.alma_"
+            "Developer": "👑 God",
+            "Instagram": "📱 _echo.del.alma_"
         }
     })
 
 @app.route('/like', methods=['GET'])
 def handle_requests():
     try:
-        # Support both 'uid' and 'user_id' parameters
         uid = request.args.get("uid") or request.args.get("user_id")
         server_name = request.args.get("server_name", "").upper()
         like_count = request.args.get("like_count", "10")
@@ -585,15 +322,31 @@ def handle_requests():
         
         try:
             uid = int(uid)
-        except ValueError:
-            return jsonify({"error": "UID must be a valid number"}), 400
-        
-        try:
             like_count = int(like_count)
             if like_count < 1 or like_count > 100:
-                return jsonify({"error": "Hey greedy...!   like_count must be between 1 and 100"}), 400
+                return jsonify({"error": "like_count must be between 1 and 100"}), 400
         except ValueError:
-            return jsonify({"error": "like_count must be a valid number"}), 400
+            return jsonify({"error": "UID and like_count must be valid numbers"}), 400
+
+        # Check daily limits
+        can_send, used_today, remaining, reset_time = tracker.can_send_likes(uid, like_count)
+        
+        if can_send == 0:
+            return jsonify({
+                "status": 0,
+                "error": "Daily limit reached for this UID",
+                "Management": {
+                    "used_today": f"⏰ {used_today}",
+                    "remaining_today": f"🔄 {remaining}",
+                    "reset_time": f"🕓 {reset_time}"
+                }
+            }), 400
+
+        # Adjust like count to available limit
+        actual_likes_to_send = min(like_count, can_send)
+        
+        if actual_likes_to_send < like_count:
+            print(f"⚠️ Adjusting likes from {like_count} to {actual_likes_to_send} due to daily limit")
 
         # Process the request
         data = load_tokens(server_name)
@@ -610,7 +363,7 @@ def handle_requests():
         print("📊 Getting initial like count...")
         before = make_request(encrypted_uid, server_name, token)
         if before is None:
-            return jsonify({"error": "God is not in a mood right now, gate is closing...."}), 500
+            return jsonify({"error": "Failed to get initial profile information"}), 500
             
         before_json = json.loads(MessageToJson(before))
         before_like = before_json.get('AccountInfo', {}).get('Likes', 0)
@@ -622,10 +375,13 @@ def handle_requests():
         
         print(f"📊 Initial likes: {before_like}, Player: {initial_name}, Level: {initial_level}")
         
-        # Send likes
-        print(f"🚀 Sending {like_count} likes...")
-        results = asyncio.run(send_multiple_requests(uid, server_name, like_count))
+        # Send likes (only the allowed amount)
+        print(f"🚀 Sending {actual_likes_to_send} likes...")
+        results = asyncio.run(send_multiple_requests(uid, server_name, actual_likes_to_send))
         print(f"✅ Likes sent - Results: {results}")
+        
+        # Update tracker
+        tracker.update_likes_sent(uid, actual_likes_to_send)
         
         # Get updated like count
         print("📊 Getting updated like count...")
@@ -646,20 +402,40 @@ def handle_requests():
         like_given = after_like - before_like
         status = 1 if like_given > 0 else 2
         
+        # Calculate already delivered today (including this request)
+        new_used_today = used_today + actual_likes_to_send
+        new_remaining = 100 - new_used_today
+        
         result = {
-            "Likes before Wish": before_like,
-            "God give you ": like_given,
-            "Likes after Wish": after_like,
-            "PlayerNickname": name,
-            "UID": player_id,
-            "Level": level,
-            "Experience": exp,
-            "Avatar": avatar,
-            "RequestedLikes": like_count,
             "status": status,
+            "player_info": {
+                "name": name,
+                "uid": player_id,
+                "server": server_name,
+                "level": level,
+                "experience": exp,
+                "avatar": avatar
+            },
+            "Like_analytics": {
+                "before": f"📊 {before_like}",
+                "after": f"📈 {after_like}",
+                "added": f"✅ +{like_given}",
+                "requested": f"🎯 {like_count}",
+                "already_delivered": f"🚀 {actual_likes_to_send}"
+            },
+            "Management": {
+                "total_likes_request_per_day": "🔑 100",
+                "used_today": f"⏰ {new_used_today}",
+                "remaining_today": f"🔄 {new_remaining}",
+                "reset_time": f"🕓 {reset_time}"
+            },
+            "next_actions": {
+                "remaining_likes": f"📨 {new_remaining} likes are available now",
+                "available_tomorrow": f"🌅 {new_used_today} likes will be available tomorrow"
+            },
             "credits": {
-                "Developer": "God",
-                "Instagram": "_echo.del.alma_"
+                "Developer": "👑 God",
+                "Instagram": "📱 _echo.del.alma_"
             }
         }
         
@@ -673,10 +449,72 @@ def handle_requests():
             "error": "Internal server error",
             "message": str(e),
             "credits": {
-                "Developer": "God",
-                "Instagram": "_echo.del.alma_"
+                "Developer": "👑 God",
+                "Instagram": "📱 _echo.del.alma_"
             }
         }), 500
+
+@app.route('/debug-request/<uid>/<server_name>')
+def debug_request(uid, server_name):
+    """Debug route to see what's happening with the request"""
+    try:
+        data = load_tokens(server_name.upper())
+        if not data:
+            return jsonify({"error": "No tokens available"})
+            
+        token = data[0]['token']
+        encrypted_uid = enc(uid)
+        
+        if not encrypted_uid:
+            return jsonify({"error": "Encryption failed"})
+        
+        url = get_server_url(server_name.upper(), "info")
+        edata = bytes.fromhex(encrypted_uid)
+        headers = get_headers(token)
+        
+        print(f"🔍 DEBUG: Sending request to {url}")
+        print(f"🔍 DEBUG: Headers: {headers}")
+        print(f"🔍 DEBUG: Encrypted UID length: {len(encrypted_uid)}")
+        
+        response = requests.post(url, data=edata, headers=headers, verify=True, timeout=30)
+        
+        debug_info = {
+            "url": url,
+            "status_code": response.status_code,
+            "response_headers": dict(response.headers),
+            "response_body_preview": response.text[:500] if response.text else "Empty response",
+            "response_hex": response.content.hex()[:100] + "..." if response.content else "No content"
+        }
+        
+        print(f"🔍 DEBUG: Response Status: {response.status_code}")
+        print(f"🔍 DEBUG: Response Headers: {dict(response.headers)}")
+        print(f"🔍 DEBUG: Response Body Preview: {response.text[:200]}")
+        
+        return jsonify(debug_info)
+        
+    except Exception as e:
+        return jsonify({
+            "error": f"Debug request failed: {str(e)}",
+            "traceback": traceback.format_exc()
+        })
+
+@app.route('/daily-stats/<uid>')
+def daily_stats(uid):
+    """Check daily like statistics for a UID"""
+    try:
+        can_send, used_today, remaining, reset_time = tracker.can_send_likes(uid, 1)
+        
+        return jsonify({
+            "uid": uid,
+            "daily_stats": {
+                "used_today": used_today,
+                "remaining_today": remaining,
+                "reset_time": reset_time,
+                "can_send_more": can_send > 0
+            }
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 # For Vercel
 app = app
