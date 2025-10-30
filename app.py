@@ -292,6 +292,7 @@ def decode_protobuf(binary):
 
 # ==================== FLASK ROUTES ====================
 
+
 @app.route('/')
 def home():
     return jsonify({
@@ -453,6 +454,108 @@ def handle_requests():
                 "Instagram": "📱 _echo.del.alma_"
             }
         }), 500
+
+
+
+
+
+# ==================== TOKEN REFRESH ROUTES ====================
+
+@app.route('/refresh-tokens', methods=['POST'])
+def refresh_tokens():
+    """Manual endpoint to refresh all tokens"""
+    try:
+        from token_refresher import token_refresher
+        
+        async def refresh():
+            return await token_refresher.convert_accounts_to_tokens()
+        
+        # Run the conversion
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        success = loop.run_until_complete(refresh())
+        
+        # Get stats
+        stats = token_refresher.get_token_stats()
+        
+        return jsonify({
+            'status': 'success' if success else 'partial_success',
+            'message': 'Tokens refreshed successfully',
+            'token_stats': stats,
+            'timestamp': datetime.utcnow().isoformat(),
+            "credits": {
+                "Developer": "👑 God",
+                "Instagram": "📱 _echo.del.alma_"
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Token refresh failed: {str(e)}',
+            "credits": {
+                "Developer": "👑 God",
+                "Instagram": "📱 _echo.del.alma_"
+            }
+        }), 500
+
+@app.route('/token-stats', methods=['GET'])
+def token_stats():
+    """Check current token statistics"""
+    try:
+        from token_refresher import token_refresher
+        stats = token_refresher.get_token_stats()
+        
+        return jsonify({
+            'status': 'success',
+            'token_statistics': stats,
+            'timestamp': datetime.utcnow().isoformat(),
+            "credits": {
+                "Developer": "👑 God",
+                "Instagram": "📱 _echo.del.alma_"
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'error': str(e),
+            "credits": {
+                "Developer": "👑 God",
+                "Instagram": "📱 _echo.del.alma_"
+            }
+        }), 500
+
+# ==================== AUTO REFRESH FUNCTION ====================
+
+def auto_refresh_tokens():
+    """Function to be called by cron job"""
+    try:
+        from token_refresher import token_refresher
+        
+        async def refresh():
+            return await token_refresher.convert_accounts_to_tokens()
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        success = loop.run_until_complete(refresh())
+        
+        if success:
+            print("✅ Auto token refresh completed successfully")
+        else:
+            print("❌ Auto token refresh completed with errors")
+            
+        return success
+    except Exception as e:
+        print(f"💥 Auto token refresh failed: {e}")
+        return False
+
+# Auto-refresh on startup (optional)
+print("🔄 Checking tokens on startup...")
+# Uncomment the line below if you want auto-refresh on startup
+# auto_refresh_tokens()
+
+
+
+
 
 @app.route('/debug-request/<uid>/<server_name>')
 def debug_request(uid, server_name):
