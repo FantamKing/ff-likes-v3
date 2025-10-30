@@ -11,5 +11,14 @@
       "src": "/(.*)",
       "dest": "/app.py"
     }
-  ]
+  ],
+  "crons": [
+    {
+      "path": "/refresh-tokens",
+      "schedule": "0 * * * *"
+    }
+  ],
+  "env": {
+    "PYTHONPATH": "/var/task"
+  }
 }
