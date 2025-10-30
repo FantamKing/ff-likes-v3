@@ -2,7 +2,6 @@
 import os
 import json
 import asyncio
-import aiohttp
 import hashlib
 import time
 import hmac
@@ -42,7 +41,6 @@ class FreeFireTokenRefresher:
     def generate_jwt_token(self, account, server):
         """
         Generate JWT token for Free Fire account
-        This is a simplified version - you may need to adjust based on actual FF auth
         """
         try:
             # JWT Header
@@ -87,6 +85,8 @@ class FreeFireTokenRefresher:
             # Combine to create JWT
             jwt_token = f"{header_encoded}.{payload_encoded}.{signature_encoded}"
             
+            logger.info(f"✅ Generated JWT token for {account.get('name')}")
+            
             return {
                 'token': jwt_token,
                 'uid': account['uid'],
@@ -108,44 +108,52 @@ class FreeFireTokenRefresher:
         """
         Main function: Convert all accounts to JWT tokens and update token files
         """
-        accounts_data = self.load_accounts()
-        if not accounts_data:
-            logger.error("❌ No accounts found in accounts.json")
-            return False
-        
-        logger.info("🔄 Starting automatic token conversion...")
-        
-        total_tokens_generated = 0
-        
-        # Process each server
-        for server, accounts in accounts_data.items():
-            if not accounts:
-                logger.warning(f"⚠️ No accounts found for {server}")
-                continue
+        try:
+            accounts_data = self.load_accounts()
+            if not accounts_data:
+                logger.error("❌ No accounts found in accounts.json")
+                return False
             
-            logger.info(f"🔄 Processing {len(accounts)} accounts for {server.upper()}")
+            logger.info("🔄 Starting automatic token conversion...")
             
-            # Generate tokens for all accounts in this server
-            tokens = []
-            for account in accounts:
-                token_data = self.generate_jwt_token(account, server)
-                if token_data:
-                    tokens.append(token_data)
-                    logger.info(f"✅ Generated token for {account.get('name')} ({server.upper()})")
-                    total_tokens_generated += 1
+            total_tokens_generated = 0
+            
+            # Process each server
+            for server, accounts in accounts_data.items():
+                if not accounts:
+                    logger.warning(f"⚠️ No accounts found for {server}")
+                    continue
+                
+                logger.info(f"🔄 Processing {len(accounts)} accounts for {server.upper()}")
+                
+                # Generate tokens for all accounts in this server
+                tokens = []
+                for account in accounts:
+                    token_data = self.generate_jwt_token(account, server)
+                    if token_data:
+                        tokens.append(token_data)
+                        logger.info(f"✅ Generated token for {account.get('name')} ({server.upper()})")
+                        total_tokens_generated += 1
+                    else:
+                        logger.error(f"❌ Failed to generate token for {account.get('name')}")
+                
+                # Update token file for this server
+                if tokens:
+                    success = self._update_token_file(server, tokens)
+                    if success:
+                        self._store_in_mongodb(server, tokens)
+                        logger.info(f"🎯 Updated token_{server}.json with {len(tokens)} tokens")
+                    else:
+                        logger.error(f"❌ Failed to update token file for {server}")
                 else:
-                    logger.error(f"❌ Failed to generate token for {account.get('name')}")
+                    logger.error(f"❌ No tokens generated for {server.upper()}")
             
-            # Update token file for this server
-            if tokens:
-                self._update_token_file(server, tokens)
-                self._store_in_mongodb(server, tokens)
-                logger.info(f"🎯 Updated token_{server}.json with {len(tokens)} tokens")
-            else:
-                logger.error(f"❌ No tokens generated for {server.upper()}")
-        
-        logger.info(f"✅ All accounts converted! Total tokens: {total_tokens_generated}")
-        return True
+            logger.info(f"✅ All accounts converted! Total tokens: {total_tokens_generated}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"💥 Error in convert_accounts_to_tokens: {e}")
+            return False
     
     def _update_token_file(self, server, tokens):
         """Overwrite token file for specific server"""
@@ -167,6 +175,7 @@ class FreeFireTokenRefresher:
     def _store_in_mongodb(self, server, tokens):
         """Store tokens in MongoDB for backup"""
         if not self.db:
+            logger.info("ℹ️ MongoDB not available, skipping backup")
             return
         
         try:
@@ -175,8 +184,7 @@ class FreeFireTokenRefresher:
                 "server_name": server.upper(),
                 "tokens": tokens,
                 "last_updated": datetime.utcnow(),
-                "total_accounts": len(tokens),
-                "expires_at": datetime.utcnow().timestamp() + (23 * 60 * 60)  # 23 hours
+                "total_accounts": len(tokens)
             }
             
             collection.update_one(
@@ -200,7 +208,8 @@ class FreeFireTokenRefresher:
                     tokens = json.load(f)
                     stats[server] = {
                         'token_count': len(tokens),
-                        'file_exists': True
+                        'file_exists': True,
+                        'sample_token': tokens[0]['token'][:50] + '...' if tokens else 'No tokens'
                     }
             except FileNotFoundError:
                 stats[server] = {
@@ -215,6 +224,3 @@ class FreeFireTokenRefresher:
                 }
         
         return stats
-
-# Global instance
-token_refresher = FreeFireTokenRefresher()
