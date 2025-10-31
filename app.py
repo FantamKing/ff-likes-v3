@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Credit:- "insta :-_echo.del.alma_"
+# Credit:- "insta :-_echo.del.alma_" 
 # Developed  by God
 
 import sys
